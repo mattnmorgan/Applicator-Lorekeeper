@@ -13,7 +13,13 @@
   "tables": [],
   "authorizations": [],
   "authorities": [],
-  "apiRoutes": [],
+  "apiRoutes": [
+    { "path": "items", "method": "GET", "description": "List all items" },
+    { "path": "items", "method": "POST", "description": "Create a new item" },
+    { "path": "items/[item-id]", "method": "GET", "description": "Get an item by ID" },
+    { "path": "items/[item-id]", "method": "PATCH", "description": "Update an item" },
+    { "path": "items/[item-id]", "method": "DELETE", "description": "Delete an item" }
+  ],
   "agents": [],
   "applets": [
     {
