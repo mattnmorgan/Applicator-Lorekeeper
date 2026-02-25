@@ -1,7 +1,25 @@
 const path = require("path");
 const fs = require("fs");
 
-// Recursively find all .ts handler files in a directory
+// Find route.ts handler files in a directory tree (Next.js-style routing).
+// Each route.ts compiles to route.js at the same relative path.
+function findRouteHandlers(dir, baseDir, prefix) {
+  const entries = {};
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      Object.assign(entries, findRouteHandlers(fullPath, baseDir, prefix));
+    } else if (entry.name === "route.ts") {
+      const relative = path.relative(baseDir, fullPath).replace(/\\/g, "/");
+      const name = relative.replace(".ts", "");
+      entries[`${prefix}/${name}`] =
+        `./${path.relative(__dirname, fullPath).replace(/\\/g, "/")}`;
+    }
+  }
+  return entries;
+}
+
+// Find named .ts handler files (for system, tables, agents directories)
 function findHandlers(dir, baseDir, prefix) {
   const entries = {};
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -18,9 +36,9 @@ function findHandlers(dir, baseDir, prefix) {
   return entries;
 }
 
-// Find all API handler files (recursive)
+// Find all API route handlers (route.ts files only)
 const apiDir = path.resolve(__dirname, "src/api");
-const handlers = fs.existsSync(apiDir) ? findHandlers(apiDir, apiDir, "api") : {};
+const handlers = fs.existsSync(apiDir) ? findRouteHandlers(apiDir, apiDir, "api") : {};
 
 // Find all system handler files (recursive)
 const systemDir = path.resolve(__dirname, "src/system");
