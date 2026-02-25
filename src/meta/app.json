@@ -1,0 +1,27 @@
+{
+  "id": "my-app",
+  "name": "My App",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "dev": 0
+  },
+  "author": "Your Name",
+  "contactEmail": "you@example.com",
+  "description": "Description of what your app does",
+  "dependencies": {},
+  "tables": [],
+  "authorizations": [],
+  "authorities": [],
+  "apiRoutes": [],
+  "agents": [],
+  "applets": [
+    {
+      "id": "main",
+      "label": "My App",
+      "description": "Main application view",
+      "target": "app",
+      "component": "App"
+    }
+  ]
+}
