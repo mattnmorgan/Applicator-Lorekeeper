@@ -48,8 +48,7 @@ async function buildPackage() {
   archive
     .file("dist/app.json", { name: "app.json" })
     .file("dist/app.js", { name: "app.js" })
-    .directory("dist/api/", "api")
-    .directory("dist/apps/", "apps");
+    .directory("dist/api/", "api");
 
   const optionalDirs = ["assets", "tables", "agents", "system"];
   for (const dir of optionalDirs) {

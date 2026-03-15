@@ -62,7 +62,6 @@ module.exports = {
       patterns: [
         { from: "assets", to: "assets", noErrorOnMissing: true },
         { from: "src/meta", to: "" },
-        { from: "src/apps", to: "apps" },
       ],
     }),
   ],
