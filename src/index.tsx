@@ -1,1 +1,1 @@
-export { default as App } from "./apps/App";
+export { default as Lorekeeper } from "./apps/Lorekeeper";

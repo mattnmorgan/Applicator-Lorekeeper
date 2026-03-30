@@ -1,7 +1,7 @@
 {
-  "name": "my-app",
+  "name": "lorekeeper",
   "version": "1.0.0",
-  "description": "An Applicator app",
+  "description": "Lorekeeping application for worldbuilding",
   "scripts": {
     "build": "npm run build:api && webpack --mode production && npm run package",
     "build:api": "webpack --config webpack.api.config.js",
@@ -10,10 +10,11 @@
     "link-sdk": "npm link @applicator/sdk"
   },
   "dependencies": {
-    "@applicator/sdk": "^1.0.0",
+    "@applicator/sdk": "file:../system/sdk",
     "next": "^16.0.8",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "sharp": "^0.34.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
