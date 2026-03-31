@@ -108,7 +108,6 @@ export default function MembershipTab({ lorebookId, isOwner, addToast }: Props) 
       <span style={{ color: "#64748b" }}><Icon name="user" size={16} /></span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 500 }}>{m.displayName}</div>
-        {m.username && <div style={{ fontSize: 11, color: "#64748b" }}>@{m.username}</div>}
       </div>
       {isOwnerRow ? (
         <span style={{ fontSize: 11, padding: "2px 8px", background: "#78350f", color: "#fcd34d" }}>Owner</span>
@@ -137,41 +136,33 @@ export default function MembershipTab({ lorebookId, isOwner, addToast }: Props) 
     <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Membership</div>
 
-      {/* Add member — above the table */}
-      <div style={{ background: "#1e293b", padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", marginBottom: 12 }}>Add Member</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Add member — single-line form */}
+      <div style={{ background: "#1e293b", padding: "10px 12px", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <SearchableCombobox
             items={users}
             selectedItems={selectedUser}
             onSelectionChange={setSelectedUser}
             getItemKey={(u) => u.id}
-            renderItem={(u) => (
-              <div>
-                <div style={{ fontSize: 13, color: "#f1f5f9" }}>{u.displayName}</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>@{u.username}</div>
-              </div>
-            )}
+            renderItem={(u) => <span style={{ fontSize: 13, color: "#f1f5f9" }}>{u.displayName}</span>}
             filterItem={(u, q) => u.displayName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())}
             placeholder="Search users…"
             onSearchChange={searchUsers}
             debounceMs={300}
           />
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <select
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value)}
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }}
-            >
-              <option value="view">View</option>
-              <option value="edit">Edit</option>
-              <option value="manager">Manager</option>
-            </select>
-            <Button variant="primary" onClick={handleAdd} disabled={selectedUser.length === 0 || adding}>
-              {adding ? "Adding…" : "Add"}
-            </Button>
-          </div>
         </div>
+        <select
+          value={newRole}
+          onChange={(e) => setNewRole(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none", flexShrink: 0 }}
+        >
+          <option value="view">View</option>
+          <option value="edit">Edit</option>
+          <option value="manager">Manager</option>
+        </select>
+        <Button variant="primary" onClick={handleAdd} disabled={selectedUser.length === 0 || adding}>
+          {adding ? "Adding…" : "Add"}
+        </Button>
       </div>
 
       {/* Owner row */}

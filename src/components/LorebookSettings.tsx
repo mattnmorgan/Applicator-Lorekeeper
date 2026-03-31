@@ -120,6 +120,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
       <div style={{ flex: 1, overflow: "hidden" }}>
         <DrawerLayout
           style={{ height: "100%" }}
+          rounded={false}
           leftPanel={{
             open: navOpen,
             type: "inline",
@@ -134,7 +135,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
             children: navContent,
           }}
         >
-          <div style={{ height: "100%", overflowY: "auto", padding: "24px" }}>
+          <div style={{ height: "100%", overflowY: tab === "metadata" ? "hidden" : "auto", padding: tab === "metadata" ? 0 : "24px" }}>
             {tab === "details" && lorebook && (
               <DetailsTab lorebook={lorebook} lorebookId={lorebookId} onUpdated={onLorebookUpdated} addToast={addToast} />
             )}

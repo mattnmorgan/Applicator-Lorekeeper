@@ -7,6 +7,7 @@ interface EntryType {
   singularName: string;
   pluralName: string;
   icon: string;
+  hasIcon: boolean;
   parentTypeId: string;
   sortOrder: number;
 }
@@ -42,6 +43,7 @@ function buildTree(types: EntryType[]): TreeNode[] {
 function NavNode({
   node,
   depth,
+  lorebookId,
   selectedTypeId,
   onSelectType,
   expandedIds,
@@ -49,6 +51,7 @@ function NavNode({
 }: {
   node: TreeNode;
   depth: number;
+  lorebookId: string;
   selectedTypeId?: string;
   onSelectType: (id: string) => void;
   expandedIds: Set<string>;
@@ -85,8 +88,18 @@ function NavNode({
         ) : (
           <span style={{ width: 12, flexShrink: 0 }} />
         )}
-        <span style={{ color: isSelected ? "#93c5fd" : "#94a3b8", flexShrink: 0 }}>
-          <Icon name={(type.icon?.startsWith("data:") ? "file" : type.icon as any) || "file"} size={14} />
+        <span style={{ flexShrink: 0 }}>
+          {type.hasIcon ? (
+            <img
+              src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${type.id}/icon`}
+              style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", display: "block" }}
+              alt=""
+            />
+          ) : (
+            <span style={{ color: isSelected ? "#93c5fd" : "#94a3b8" }}>
+              <Icon name={(type.icon as any) || "file"} size={14} />
+            </span>
+          )}
         </span>
         <span style={{ fontSize: 13, color: isSelected ? "#e2e8f0" : "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {type.pluralName}
@@ -99,6 +112,7 @@ function NavNode({
               key={child.type.id}
               node={child}
               depth={depth + 1}
+              lorebookId={lorebookId}
               selectedTypeId={selectedTypeId}
               onSelectType={onSelectType}
               expandedIds={expandedIds}
@@ -140,6 +154,7 @@ export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, o
           key={node.type.id}
           node={node}
           depth={0}
+          lorebookId={lorebookId}
           selectedTypeId={selectedTypeId}
           onSelectType={onSelectType}
           expandedIds={expandedIds}

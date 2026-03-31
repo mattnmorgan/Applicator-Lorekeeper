@@ -5,6 +5,10 @@ export function lorebookIconPath(lorebookId: string): string {
   return `icons/lorebooks/${lorebookId}.jpg`;
 }
 
+export function entryTypeIconPath(typeId: string): string {
+  return `icons/entry-types/${typeId}.jpg`;
+}
+
 export function recordIconPath(recordId: string): string {
   return `icons/records/${recordId}.jpg`;
 }

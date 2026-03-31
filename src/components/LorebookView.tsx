@@ -177,6 +177,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, naviga
       <div style={{ flex: 1, overflow: "hidden" }}>
         <DrawerLayout
           style={{ height: "100%" }}
+          rounded={false}
           leftPanel={{
             open: navOpen,
             type: "inline",

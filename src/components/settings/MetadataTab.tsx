@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Button, ButtonIcon, Icon, Modal, ConfirmModal, DynamicInput, Spinner } from "@applicator/sdk/components";
+import { Button, ButtonIcon, Icon, Modal, ConfirmModal, DynamicInput, Spinner, ImageUpload } from "@applicator/sdk/components";
 
 interface EntryType {
   id: string;
   singularName: string;
   pluralName: string;
   icon: string;
+  hasIcon: boolean;
   blurb: string;
   parentTypeId: string;
   bgColor: string;
@@ -316,110 +317,163 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
   const activeType = entryTypes.find((t) => t.id === activeTypeId);
 
+  const getDepth = (typeId: string, visited = new Set<string>()): number => {
+    if (visited.has(typeId)) return 0;
+    visited.add(typeId);
+    const t = entryTypes.find((x) => x.id === typeId);
+    if (!t?.parentTypeId) return 0;
+    return 1 + getDepth(t.parentTypeId, visited);
+  };
+
   if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 32 }}><Spinner /></div>;
 
   return (
-    <div style={{ display: "flex", gap: 24, height: "100%" }}>
+    <div style={{ display: "flex", gap: 0, height: "100%", overflow: "hidden" }}>
       {/* Left: entry types list */}
-      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", borderRight: "1px solid #1e293b", paddingRight: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 12px 8px 12px", flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>Entry Types</span>
           {canEdit && <ButtonIcon name="plus" label="New entry type" size="sm" onClick={() => setShowCreateType(true)} />}
         </div>
-        {entryTypes.length === 0 && <div style={{ color: "#64748b", fontSize: 12 }}>No entry types yet</div>}
-        {entryTypes.map((et) => (
-          <div
-            key={et.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "7px 10px",
-              borderRadius: 6,
-              cursor: "pointer",
-              background: activeTypeId === et.id ? "#1e3a5f" : "transparent",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { if (activeTypeId !== et.id) e.currentTarget.style.background = "#1e293b"; }}
-            onMouseLeave={(e) => { if (activeTypeId !== et.id) e.currentTarget.style.background = "transparent"; }}
-            onClick={() => setActiveTypeId(et.id)}
-          >
-            <span style={{ color: "#64748b" }}><Icon name={(et.icon?.startsWith("data:") ? "file" : et.icon as any) || "file"} size={14} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{et.pluralName}</div>
-              <div style={{ fontSize: 10, color: "#64748b" }}>{et.singularName}</div>
+        {entryTypes.length === 0 && <div style={{ color: "#64748b", fontSize: 12, padding: "0 12px" }}>No entry types yet</div>}
+        {entryTypes.map((et) => {
+          const depth = getDepth(et.id);
+          const isActive = activeTypeId === et.id;
+          return (
+            <div
+              key={et.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: `5px 10px 5px ${10 + depth * 16}px`,
+                cursor: "pointer",
+                background: isActive ? "#1e3a5f" : "transparent",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#1e293b"; }}
+              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+              onClick={() => setActiveTypeId(et.id)}
+            >
+              {et.hasIcon ? (
+                <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${et.id}/icon`} style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} alt="" />
+              ) : (
+                <span style={{ color: "#64748b", flexShrink: 0 }}><Icon name={(et.icon as any) || "file"} size={12} /></span>
+              )}
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 12,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: et.bgColor || "#334155",
+                  color: et.fgColor || "#f1f5f9",
+                }}
+              >
+                {et.pluralName}
+              </span>
+              {canEdit && isActive && (
+                <ButtonIcon name="trash" label="Delete entry type" subvariant="danger" size="sm" onClick={() => setDeleteTypeTarget(et)} />
+              )}
             </div>
-            {canEdit && activeTypeId === et.id && (
-              <ButtonIcon name="trash" label="Delete entry type" subvariant="danger" size="sm" onClick={() => setDeleteTypeTarget(et)} />
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Right: active type detail */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px" }}>
         {!activeType ? (
           <div style={{ color: "#64748b", fontSize: 13 }}>Select an entry type to edit</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Type header */}
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 12 }}>
-                <span style={{ color: "#94a3b8" }}><Icon name={(activeType.icon?.startsWith("data:") ? "file" : activeType.icon as any) || "file"} size={16} /></span>
-                {" "}{activeType.pluralName}
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                {activeType.hasIcon ? (
+                  <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`} style={{ width: 20, height: 20, borderRadius: 4, objectFit: "cover" }} alt="" />
+                ) : (
+                  <span style={{ color: "#94a3b8" }}><Icon name={(activeType.icon as any) || "file"} size={16} /></span>
+                )}
+                {activeType.pluralName}
               </div>
 
               {canEdit && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <InlineEdit label="Singular Name" value={activeType.singularName} onSave={(v) => handleUpdateType("singularName", v)} />
-                  <InlineEdit label="Plural Name" value={activeType.pluralName} onSave={(v) => handleUpdateType("pluralName", v)} />
-                  <div style={{ gridColumn: "1 / -1" }}>
+                <>
+                  <hr style={{ border: "none", borderTop: "1px solid #1e293b", margin: "0 0 12px 0" }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Icon + Parent Type */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <ImageUpload
+                          label="Icon"
+                          value={activeType.hasIcon ? `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon` : null}
+                          onChange={async (dataUrl) => {
+                            const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ iconData: dataUrl }),
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setEntryTypes((prev) => prev.map((t) => t.id === activeType.id ? { ...t, hasIcon: data.hasIcon } : t));
+                            }
+                          }}
+                          previewSize={48}
+                          previewRadius={8}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Parent Type</div>
+                        <select
+                          value={activeType.parentTypeId || ""}
+                          onChange={(e) => handleUpdateType("parentTypeId", e.target.value)}
+                          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 12, outline: "none", width: "100%" }}
+                        >
+                          <option value="">None</option>
+                          {entryTypes.filter((t) => t.id !== activeTypeId).map((t) => (
+                            <option key={t.id} value={t.id}>{t.pluralName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {/* Singular + Plural Name */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <InlineEdit label="Singular Name" value={activeType.singularName} onSave={(v) => handleUpdateType("singularName", v)} />
+                      <InlineEdit label="Plural Name" value={activeType.pluralName} onSave={(v) => handleUpdateType("pluralName", v)} />
+                    </div>
+                    {/* Summary */}
                     <InlineEdit label="Summary" value={activeType.blurb} onSave={(v) => handleUpdateType("blurb", v)} multiline />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Icon</div>
-                    <DynamicInput
-                      input={{ id: "icon", label: "", type: "icon" }}
-                      value={(activeType.icon?.startsWith("data:") ? "file" : activeType.icon) || "file"}
-                      onChange={(_, v) => handleUpdateType("icon", v)}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Parent Type</div>
-                    <select
-                      value={activeType.parentTypeId || ""}
-                      onChange={(e) => handleUpdateType("parentTypeId", e.target.value)}
-                      style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 12, outline: "none", width: "100%" }}
-                    >
-                      <option value="">None</option>
-                      {entryTypes.filter((t) => t.id !== activeTypeId).map((t) => (
-                        <option key={t.id} value={t.id}>{t.pluralName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Background</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input type="color" value={activeType.bgColor || "#334155"} onChange={(e) => handleUpdateType("bgColor", e.target.value)}
-                        style={{ width: 36, height: 28, borderRadius: 4, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
-                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{activeType.bgColor}</span>
+                    {/* Badge — 3-column inline section */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Background</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <input type="color" value={activeType.bgColor || "#334155"} onChange={(e) => handleUpdateType("bgColor", e.target.value)}
+                            style={{ width: 36, height: 28, borderRadius: 4, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+                          <span style={{ fontSize: 12, color: "#94a3b8" }}>{activeType.bgColor}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Foreground</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <input type="color" value={activeType.fgColor || "#f1f5f9"} onChange={(e) => handleUpdateType("fgColor", e.target.value)}
+                            style={{ width: 36, height: 28, borderRadius: 4, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+                          <span style={{ fontSize: 12, color: "#94a3b8" }}>{activeType.fgColor}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Preview</div>
+                        <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 4, background: activeType.bgColor || "#334155", color: activeType.fgColor || "#f1f5f9" }}>
+                          {activeType.singularName}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Foreground</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input type="color" value={activeType.fgColor || "#f1f5f9"} onChange={(e) => handleUpdateType("fgColor", e.target.value)}
-                        style={{ width: 36, height: 28, borderRadius: 4, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
-                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{activeType.fgColor}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Preview Badge</div>
-                    <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 4, background: activeType.bgColor || "#334155", color: activeType.fgColor || "#f1f5f9" }}>
-                      {activeType.singularName}
-                    </span>
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
