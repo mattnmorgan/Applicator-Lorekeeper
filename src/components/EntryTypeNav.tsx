@@ -12,11 +12,21 @@ interface EntryType {
   sortOrder: number;
 }
 
+interface EntryTypeAlias {
+  id: string;
+  entryTypeId: string;
+  singularName: string;
+  pluralName: string;
+}
+
 interface Props {
   lorebookId: string;
   entryTypes: EntryType[];
   selectedTypeId?: string;
+  selectedAliasId?: string;
+  aliasesByTypeId: Record<string, EntryTypeAlias[]>;
   onSelectType: (typeId: string) => void;
+  onSelectAlias: (typeId: string, aliasId: string) => void;
 }
 
 interface TreeNode {
@@ -37,6 +47,13 @@ function buildTree(types: EntryType[]): TreeNode[] {
     }
   });
 
+  const bySort = (a: TreeNode, b: TreeNode) => (a.type.sortOrder ?? 0) - (b.type.sortOrder ?? 0);
+  const sortTree = (nodes: TreeNode[]) => {
+    nodes.sort(bySort);
+    nodes.forEach((n) => sortTree(n.children));
+  };
+  sortTree(roots);
+
   return roots;
 }
 
@@ -45,7 +62,10 @@ function NavNode({
   depth,
   lorebookId,
   selectedTypeId,
+  selectedAliasId,
+  aliasesByTypeId,
   onSelectType,
+  onSelectAlias,
   expandedIds,
   toggleExpanded,
 }: {
@@ -53,12 +73,16 @@ function NavNode({
   depth: number;
   lorebookId: string;
   selectedTypeId?: string;
+  selectedAliasId?: string;
+  aliasesByTypeId: Record<string, EntryTypeAlias[]>;
   onSelectType: (id: string) => void;
+  onSelectAlias: (typeId: string, aliasId: string) => void;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
 }) {
   const { type, children } = node;
-  const isSelected = selectedTypeId === type.id;
+  const typeAliases = aliasesByTypeId[type.id] || [];
+  const isSelected = selectedTypeId === type.id && !selectedAliasId;
   const isExpanded = expandedIds.has(type.id);
   const hasChildren = children.length > 0;
 
@@ -74,7 +98,7 @@ function NavNode({
           background: isSelected ? "#1e3a5f" : "transparent",
           transition: "background 0.15s",
         }}
-        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#1e293b"; }}
+        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a2e47"; }}
         onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
         onClick={() => onSelectType(type.id)}
       >
@@ -105,6 +129,33 @@ function NavNode({
           {type.pluralName}
         </span>
       </div>
+      {/* Alias sub-items */}
+      {typeAliases.map((alias) => {
+        const isAliasSelected = selectedTypeId === type.id && selectedAliasId === alias.id;
+        return (
+          <div
+            key={alias.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: `5px 12px 5px ${12 + (depth + 1) * 16}px`,
+              cursor: "pointer",
+              background: isAliasSelected ? "#1e3a5f" : "transparent",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { if (!isAliasSelected) e.currentTarget.style.background = "#1a2e47"; }}
+            onMouseLeave={(e) => { if (!isAliasSelected) e.currentTarget.style.background = "transparent"; }}
+            onClick={() => onSelectAlias(type.id, alias.id)}
+          >
+            <span style={{ width: 12, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: isAliasSelected ? "#e2e8f0" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {alias.pluralName}
+            </span>
+          </div>
+        );
+      })}
+
       {hasChildren && isExpanded && (
         <div>
           {children.map((child) => (
@@ -114,7 +165,10 @@ function NavNode({
               depth={depth + 1}
               lorebookId={lorebookId}
               selectedTypeId={selectedTypeId}
+              selectedAliasId={selectedAliasId}
+              aliasesByTypeId={aliasesByTypeId}
               onSelectType={onSelectType}
+              onSelectAlias={onSelectAlias}
               expandedIds={expandedIds}
               toggleExpanded={toggleExpanded}
             />
@@ -125,7 +179,7 @@ function NavNode({
   );
 }
 
-export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, onSelectType }: Props) {
+export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, selectedAliasId, aliasesByTypeId, onSelectType, onSelectAlias }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(entryTypes.map((t) => t.id)));
 
   const toggleExpanded = (id: string) => {
@@ -156,7 +210,10 @@ export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, o
           depth={0}
           lorebookId={lorebookId}
           selectedTypeId={selectedTypeId}
+          selectedAliasId={selectedAliasId}
+          aliasesByTypeId={aliasesByTypeId}
           onSelectType={onSelectType}
+          onSelectAlias={onSelectAlias}
           expandedIds={expandedIds}
           toggleExpanded={toggleExpanded}
         />

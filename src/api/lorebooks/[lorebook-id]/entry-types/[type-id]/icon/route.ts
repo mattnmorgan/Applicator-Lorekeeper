@@ -12,7 +12,7 @@ export async function GET(
     const level = await getLorebookAccess(context, params.lorebookId);
     if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const iconPath = entryTypeIconPath(params.typeId);
+    const iconPath = entryTypeIconPath(params.lorebookId, params.typeId);
     const exists = await context.appFileManager.exists(iconPath);
     if (!exists) return NextResponse.json({ error: "No icon" }, { status: 404 });
 
@@ -38,7 +38,7 @@ export async function POST(
     if (!canEdit(level)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-    const iconPath = entryTypeIconPath(params.typeId);
+    const iconPath = entryTypeIconPath(params.lorebookId, params.typeId);
     const types = context.recordManager("lorekeeper", "entry_type");
     const table = await types.getTable();
 

@@ -25,12 +25,15 @@ export async function GET(
       lorebook.data.ownerId,
       ...result.records.map((r: any) => r.data.userId),
     ];
+    const userRecords = context.recordManager("system", "users");
+    const allUsers = await userRecords.readRecords({ limit: 1000 });
     const userMap: Record<string, any> = {};
-    for (const uid of [...new Set(userIds)]) {
-      try {
-        const u = await context.user(uid);
-        userMap[uid] = { displayName: u.displayName || u.username, username: u.username, email: u.email };
-      } catch {}
+    for (const u of allUsers.records) {
+      userMap[u.id] = {
+        displayName: u.data.display_name || u.data.username,
+        username: u.data.username,
+        email: u.data.email,
+      };
     }
 
     const owner = {

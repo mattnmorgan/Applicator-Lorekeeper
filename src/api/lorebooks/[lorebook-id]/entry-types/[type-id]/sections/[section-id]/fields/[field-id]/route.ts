@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
 import { getLorebookAccess, canEdit } from "../../../../../../../../../lib/permissions";
 
+export async function PATCH(
+  req: NextRequest,
+  context: ApiContext,
+  params: { lorebookId: string; typeId: string; sectionId: string; fieldId: string }
+) {
+  try {
+    const level = await getLorebookAccess(context, params.lorebookId);
+    if (!canEdit(level)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const fields = context.recordManager("lorekeeper", "entry_field");
+    const record = await fields.readRecord(params.fieldId);
+    if (!record || record.data.lorebookId !== params.lorebookId || record.data.sectionId !== params.sectionId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const body = await req.json();
+    const updates: any = {};
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.config !== undefined) updates.config = body.config;
+
+    const table = await fields.getTable();
+    const updated = await fields.updateRecord(table, params.fieldId, updates);
+    return NextResponse.json({ id: updated.id, ...updated.data });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   _req: NextRequest,
   context: ApiContext,

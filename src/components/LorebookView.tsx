@@ -12,6 +12,7 @@ interface EntryType {
   singularName: string;
   pluralName: string;
   icon: string;
+  hasIcon: boolean;
   blurb: string;
   parentTypeId: string;
   bgColor: string;
@@ -28,16 +29,25 @@ interface Lorebook {
   accessLevel: string;
 }
 
+interface EntryTypeAlias {
+  id: string;
+  entryTypeId: string;
+  singularName: string;
+  pluralName: string;
+}
+
 interface Props {
   lorebookId: string;
   entryTypeId?: string;
   recordId?: string;
+  aliasId?: string;
   navigate: (v: AppView) => void;
 }
 
-export default function LorebookView({ lorebookId, entryTypeId, recordId, navigate }: Props) {
+export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasId, navigate }: Props) {
   const [lorebook, setLorebook] = useState<Lorebook | null>(null);
   const [entryTypes, setEntryTypes] = useState<EntryType[]>([]);
+  const [aliasesByTypeId, setAliasesByTypeId] = useState<Record<string, EntryTypeAlias[]>>({});
   const [navOpen, setNavOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<any[]>([]);
@@ -57,7 +67,17 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, naviga
       if (bookRes.ok) setLorebook(await bookRes.json());
       if (typesRes.ok) {
         const d = await typesRes.json();
-        setEntryTypes(d.entryTypes || []);
+        const types: EntryType[] = d.entryTypes || [];
+        setEntryTypes(types);
+        // Fetch aliases for all entry types in parallel
+        const aliasResults = await Promise.all(
+          types.map(async (t) => {
+            const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${t.id}/aliases`);
+            const aliases: EntryTypeAlias[] = r.ok ? (await r.json()).aliases || [] : [];
+            return [t.id, aliases] as [string, EntryTypeAlias[]];
+          })
+        );
+        setAliasesByTypeId(Object.fromEntries(aliasResults));
       }
     } catch {}
     setLoading(false);
@@ -69,15 +89,23 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, naviga
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId });
   };
 
+  const handleSelectAlias = (typeId: string, aId: string) => {
+    navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, aliasId: aId });
+  };
+
   const handleSelectRecord = (typeId: string, rId: string) => {
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, recordId: rId });
   };
 
   const handleBackToList = (typeId: string) => {
-    navigate({ type: "lorebook", lorebookId, entryTypeId: typeId });
+    navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, aliasId });
   };
 
   const canEdit = lorebook?.accessLevel === "owner" || lorebook?.accessLevel === "manager" || lorebook?.accessLevel === "edit";
+
+  const currentAlias = aliasId && entryTypeId
+    ? (aliasesByTypeId[entryTypeId] || []).find((a) => a.id === aliasId)
+    : undefined;
 
   if (loading) {
     return (
@@ -195,7 +223,10 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, naviga
                 lorebookId={lorebookId}
                 entryTypes={entryTypes}
                 selectedTypeId={entryTypeId}
+                selectedAliasId={aliasId}
+                aliasesByTypeId={aliasesByTypeId}
                 onSelectType={handleSelectType}
+                onSelectAlias={handleSelectAlias}
               />
             ),
           }}
@@ -213,6 +244,8 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, naviga
                 entryTypeId={entryTypeId}
                 entryTypes={entryTypes}
                 canEdit={canEdit}
+                aliasId={aliasId}
+                aliasName={currentAlias?.pluralName}
                 onSelectRecord={(rId) => handleSelectRecord(entryTypeId, rId)}
                 addToast={addToast}
               />

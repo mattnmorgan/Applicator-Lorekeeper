@@ -13,16 +13,16 @@ export async function GET(
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
+    const aliasId = searchParams.get("aliasId") || "";
 
     const records = context.recordManager("lorekeeper", "entry_record");
-    const result = await records.readRecords({
-      filters: [
-        { field: "lorebookId", operator: "=", value: params.lorebookId },
-        { field: "entryTypeId", operator: "=", value: params.typeId },
-      ],
-      condition: "1 AND 2",
-      limit: 2000,
-    });
+    const filters: any[] = [
+      { field: "lorebookId", operator: "=", value: params.lorebookId },
+      { field: "entryTypeId", operator: "=", value: params.typeId },
+    ];
+    if (aliasId) filters.push({ field: "aliasId", operator: "=", value: aliasId });
+    const condition = filters.length === 3 ? "1 AND 2 AND 3" : "1 AND 2";
+    const result = await records.readRecords({ filters, condition, limit: 2000 });
 
     let items = result.records.map((r: any) => ({ id: r.id, ...r.data }));
 
@@ -61,6 +61,7 @@ export async function POST(
     const record = await records.createRecord(table, {
       lorebookId: params.lorebookId,
       entryTypeId: params.typeId,
+      aliasId: body.aliasId || "",
       name: body.name.trim(),
       blurb: body.blurb || "",
       hasIcon: false,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
 import { getLorebookAccess, canEdit } from "../../../../../lib/permissions";
+import { entryTypeIconPath, deleteIconFile } from "../../../../../lib/iconStorage";
 
 export async function GET(
   _req: NextRequest,
@@ -94,6 +95,8 @@ export async function DELETE(
       }
       await rm("entry_type").deleteRecord(params.typeId, { client });
     });
+
+    await deleteIconFile(context.appFileManager, entryTypeIconPath(params.lorebookId, params.typeId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

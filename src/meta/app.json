@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 0, "dev": 0 },
+  "version": { "major": 1, "minor": 1, "dev": 0 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -43,6 +43,16 @@
       ]
     },
     {
+      "name": "entry_type_alias",
+      "description": "An alias (alternate name) for an entry type",
+      "fields": [
+        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
+        { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
+        { "name": "singularName", "description": "Singular alias name", "type": "string", "required": true },
+        { "name": "pluralName", "description": "Plural alias name", "type": "string", "required": true }
+      ]
+    },
+    {
       "name": "entry_section",
       "description": "A section of fields or a related list for an entry type",
       "fields": [
@@ -50,7 +60,8 @@
         { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
         { "name": "name", "description": "Section display name", "type": "string", "required": true },
         { "name": "sectionType", "description": "Whether this section contains fields or a related list", "type": "picklist", "required": true, "options": { "fields": "Fields", "related_list": "Related List" } },
-        { "name": "sortOrder", "description": "Display sort order", "type": "number" }
+        { "name": "sortOrder", "description": "Display sort order", "type": "number" },
+        { "name": "config", "description": "JSON configuration (e.g. aliasIds restriction)", "type": "json" }
       ]
     },
     {
@@ -92,6 +103,7 @@
         { "name": "name", "description": "Record name", "type": "string", "required": true },
         { "name": "blurb", "description": "Short description of this record", "type": "string" },
         { "name": "hasIcon", "description": "Whether a filesystem icon exists for this record", "type": "boolean" },
+        { "name": "aliasId", "description": "Optional alias ID if this record was created under a specific alias", "type": "relationship", "relatedTo": "entry_type_alias" },
         { "name": "fieldData", "description": "JSON map of custom field ID to value", "type": "json" }
       ]
     },
@@ -146,6 +158,10 @@
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]", "method": "DELETE", "description": "Delete an entry type" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon", "method": "GET", "description": "Serve entry type icon" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon", "method": "POST", "description": "Upload entry type icon" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases", "method": "GET", "description": "List aliases for an entry type" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases", "method": "POST", "description": "Create an alias" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]", "method": "PATCH", "description": "Update an alias" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]", "method": "DELETE", "description": "Delete an alias" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections", "method": "GET", "description": "List sections for an entry type" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections", "method": "POST", "description": "Create a section" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/reorder", "method": "POST", "description": "Reorder sections" },
@@ -154,6 +170,7 @@
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "GET", "description": "List fields in a section" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "POST", "description": "Create a field" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/reorder", "method": "POST", "description": "Reorder fields" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]", "method": "PATCH", "description": "Update a field's config" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]", "method": "DELETE", "description": "Delete a field" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related", "method": "GET", "description": "List related list pairings" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related", "method": "POST", "description": "Add a related list pairing" },

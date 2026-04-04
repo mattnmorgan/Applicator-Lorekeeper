@@ -2,11 +2,11 @@ import sharp from "sharp";
 import { ApiContext } from "@applicator/sdk/context";
 
 export function lorebookIconPath(lorebookId: string): string {
-  return `icons/lorebooks/${lorebookId}.jpg`;
+  return `${lorebookId}/icon.jpg`;
 }
 
-export function entryTypeIconPath(typeId: string): string {
-  return `icons/entry-types/${typeId}.jpg`;
+export function entryTypeIconPath(lorebookId: string, typeId: string): string {
+  return `${lorebookId}/${typeId}.jpg`;
 }
 
 export function recordIconPath(recordId: string): string {

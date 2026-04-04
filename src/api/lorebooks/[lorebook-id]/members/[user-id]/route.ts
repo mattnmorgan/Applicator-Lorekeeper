@@ -104,8 +104,11 @@ export async function DELETE(
   params: { lorebookId: string; userId: string }
 ) {
   try {
+    const currentUser = await context.user();
     const level = await getLorebookAccess(context, params.lorebookId);
-    if (!canManageMembers(level)) {
+    // Allow self-revoke (member removing their own access), otherwise require canManageMembers
+    const isSelfRevoke = params.userId === currentUser.id;
+    if (!isSelfRevoke && !canManageMembers(level)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

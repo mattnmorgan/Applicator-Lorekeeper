@@ -25,6 +25,8 @@ interface Props {
   entryTypeId: string;
   entryTypes: EntryType[];
   canEdit: boolean;
+  aliasId?: string;
+  aliasName?: string;
   onSelectRecord: (recordId: string) => void;
   addToast: (message: string, type?: "success" | "error") => void;
 }
@@ -34,6 +36,8 @@ export default function EntryTypeRecords({
   entryTypeId,
   entryTypes,
   canEdit,
+  aliasId,
+  aliasName,
   onSelectRecord,
   addToast,
 }: Props) {
@@ -51,7 +55,10 @@ export default function EntryTypeRecords({
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const params = search ? `?search=${encodeURIComponent(search)}` : "";
+      const qs = new URLSearchParams();
+      if (search) qs.set("search", search);
+      if (aliasId) qs.set("aliasId", aliasId);
+      const params = qs.toString() ? `?${qs.toString()}` : "";
       const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records${params}`);
       if (res.ok) {
         const data = await res.json();
@@ -64,7 +71,7 @@ export default function EntryTypeRecords({
   useEffect(() => {
     setSearch("");
     fetchRecords();
-  }, [entryTypeId]);
+  }, [entryTypeId, aliasId]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchRecords(), 200);
@@ -82,7 +89,7 @@ export default function EntryTypeRecords({
       const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({ name: newName.trim(), ...(aliasId ? { aliasId } : {}) }),
       });
       if (res.ok) {
         const record = await res.json();
@@ -142,14 +149,19 @@ export default function EntryTypeRecords({
             </span>
           )}
           <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
-            {entryType?.pluralName || "Entries"}
+            {aliasName || entryType?.pluralName || "Entries"}
           </span>
+          {aliasName && (
+            <span style={{ fontSize: 12, color: "#64748b", background: "#1e293b", padding: "1px 6px", borderRadius: 4 }}>
+              {entryType?.pluralName}
+            </span>
+          )}
           <span style={{ fontSize: 12, color: "#64748b" }}>({filtered.length})</span>
         </div>
         {canEdit && (
           <ButtonIcon
             name="plus"
-            label={`Create new ${entryType?.singularName || "entry"}`}
+            label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
             onClick={() => setShowCreate(true)}
           />
         )}

@@ -10,6 +10,8 @@ import {
   DynamicInput,
   Spinner,
   ToastStack,
+  ProfileIndicator,
+  Tooltip,
 } from "@applicator/sdk/components";
 import type { AppView } from "../apps/Lorekeeper";
 
@@ -30,6 +32,7 @@ interface Props {
 export default function LorebookList({ navigate }: Props) {
   const [owned, setOwned] = useState<LorebookEntry[]>([]);
   const [shared, setShared] = useState<LorebookEntry[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -51,6 +54,7 @@ export default function LorebookList({ navigate }: Props) {
         const data = await res.json();
         setOwned(data.owned || []);
         setShared(data.shared || []);
+        if (data.currentUserId) setCurrentUserId(data.currentUserId);
       }
     } catch {}
     setLoading(false);
@@ -102,15 +106,9 @@ export default function LorebookList({ navigate }: Props) {
 
   const handleRevokeSelf = async (book: LorebookEntry) => {
     try {
-      const res = await fetch(`/api/lorekeeper/lorebooks/${book.id}/members`);
-      if (!res.ok) { addToast("Failed to revoke access", "error"); return; }
-      const data = await res.json();
-      const me = data.members?.find((m: any) => m.userId === book.ownerId);
-      if (me) {
-        const del = await fetch(`/api/lorekeeper/lorebooks/${book.id}/members/${me.userId}`, { method: "DELETE" });
-        if (del.ok) { addToast("Access revoked"); fetchLorebooks(); return; }
-      }
-      addToast("To revoke access, ask the owner or use Settings → Membership", "error");
+      const res = await fetch(`/api/lorekeeper/lorebooks/${book.id}/members/${currentUserId}`, { method: "DELETE" });
+      if (res.ok) { addToast("Access revoked"); fetchLorebooks(); }
+      else addToast("Failed to revoke access", "error");
     } catch {
       addToast("Failed to revoke access", "error");
     }
@@ -165,7 +163,12 @@ export default function LorebookList({ navigate }: Props) {
       </div>
 
       {!isOwned && (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+          <Tooltip text={`Owner: ${book.ownerName}`} placement="top">
+            <span>
+              <ProfileIndicator displayName={book.ownerName} size={22} />
+            </span>
+          </Tooltip>
           <ButtonIcon name="trash" label="Revoke access" onClick={() => setRevokeTarget(book)} subvariant="danger" />
         </div>
       )}

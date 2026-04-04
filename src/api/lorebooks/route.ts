@@ -48,6 +48,7 @@ export async function GET(req: NextRequest, context: ApiContext) {
     });
 
     return NextResponse.json({
+      currentUserId: user.id,
       owned: ownedResult.records.map((r: any) => mapBook(r, "owner")),
       shared: sharedBooks.map((book: any) => {
         const membership = memberResult.records.find(

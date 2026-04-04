@@ -16,11 +16,19 @@ interface EntryType {
   sortOrder: number;
 }
 
+interface EntryTypeAlias {
+  id: string;
+  entryTypeId: string;
+  singularName: string;
+  pluralName: string;
+}
+
 interface EntrySection {
   id: string;
   name: string;
   sectionType: "fields" | "related_list";
   sortOrder: number;
+  config?: { aliasIds?: string[] };
 }
 
 interface EntryField {
@@ -83,6 +91,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   // Delete type
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<EntryType | null>(null);
 
+  // Aliases
+  const [aliases, setAliases] = useState<EntryTypeAlias[]>([]);
+  const [showCreateAlias, setShowCreateAlias] = useState(false);
+  const [aliasValues, setAliasValues] = useState({ singularName: "", pluralName: "" });
+  const [editingAlias, setEditingAlias] = useState<EntryTypeAlias | null>(null);
+
   // DnD
   const dragSecId = useRef<string | null>(null);
   const dragFieldId = useRef<{ sectionId: string; fieldId: string } | null>(null);
@@ -121,8 +135,20 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     setLoadingSections(false);
   };
 
+  const fetchAliases = async (typeId: string) => {
+    const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/aliases`);
+    if (res.ok) setAliases((await res.json()).aliases || []);
+  };
+
   useEffect(() => { fetchTypes(); }, [lorebookId]);
-  useEffect(() => { if (activeTypeId) fetchSections(activeTypeId); }, [activeTypeId]);
+  useEffect(() => {
+    if (activeTypeId) {
+      fetchSections(activeTypeId);
+      fetchAliases(activeTypeId);
+    } else {
+      setAliases([]);
+    }
+  }, [activeTypeId]);
 
   const handleCreateType = async () => {
     if (!typeValues.singularName?.trim() || !typeValues.pluralName?.trim()) {
@@ -315,14 +341,94 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     }
   };
 
+  const handleCreateAlias = async () => {
+    if (!activeTypeId || !aliasValues.singularName.trim() || !aliasValues.pluralName.trim()) return;
+    const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/aliases`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(aliasValues),
+    });
+    if (res.ok) {
+      const a = await res.json();
+      setAliases((prev) => [...prev, a].sort((x, y) => x.pluralName.localeCompare(y.pluralName)));
+      setAliasValues({ singularName: "", pluralName: "" });
+      setShowCreateAlias(false);
+      addToast("Alias created");
+    } else addToast("Failed to create alias", "error");
+  };
+
+  const handleUpdateAlias = async (alias: EntryTypeAlias, updates: Partial<EntryTypeAlias>) => {
+    if (!activeTypeId) return;
+    const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/aliases/${alias.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setAliases((prev) => prev.map((a) => a.id === alias.id ? updated : a).sort((x, y) => x.pluralName.localeCompare(y.pluralName)));
+      setEditingAlias(null);
+    } else addToast("Failed to update alias", "error");
+  };
+
+  const handleDeleteAlias = async (aliasId: string) => {
+    if (!activeTypeId) return;
+    const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/aliases/${aliasId}`, { method: "DELETE" });
+    if (res.ok) {
+      setAliases((prev) => prev.filter((a) => a.id !== aliasId));
+      addToast("Alias deleted");
+    } else addToast("Failed to delete alias", "error");
+  };
+
+  const handleUpdateSectionAliasRestriction = async (sec: EntrySection, aliasIds: string[]) => {
+    if (!activeTypeId) return;
+    const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${sec.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: { ...(sec.config || {}), aliasIds } }),
+    });
+    if (res.ok) {
+      setSections((prev) => prev.map((s) => s.id === sec.id ? { ...s, config: { ...(s.config || {}), aliasIds } } : s));
+    } else addToast("Failed to update section restriction", "error");
+  };
+
   const activeType = entryTypes.find((t) => t.id === activeTypeId);
 
-  const getDepth = (typeId: string, visited = new Set<string>()): number => {
-    if (visited.has(typeId)) return 0;
+  // Returns the full ancestor path label for a type, e.g. "Planets > Continents"
+  const getTypePath = (typeId: string, visited = new Set<string>()): string => {
+    if (visited.has(typeId)) return "";
     visited.add(typeId);
     const t = entryTypes.find((x) => x.id === typeId);
-    if (!t?.parentTypeId) return 0;
-    return 1 + getDepth(t.parentTypeId, visited);
+    if (!t) return "";
+    if (!t.parentTypeId) return t.pluralName;
+    const parentPath = getTypePath(t.parentTypeId, visited);
+    return parentPath ? `${parentPath} › ${t.pluralName}` : t.pluralName;
+  };
+
+  // Returns entry types in depth-first tree order with their depth, so children always appear directly under their parent
+  const getTreeOrderedTypes = (): Array<{ type: EntryType; depth: number }> => {
+    const childrenOf: Record<string, EntryType[]> = {};
+    const roots: EntryType[] = [];
+    entryTypes.forEach((t) => {
+      const parent = t.parentTypeId && entryTypes.find((x) => x.id === t.parentTypeId);
+      if (parent) {
+        (childrenOf[parent.id] = childrenOf[parent.id] || []).push(t);
+      } else {
+        roots.push(t);
+      }
+    });
+    // Sort children and roots by sortOrder
+    const bySort = (a: EntryType, b: EntryType) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    roots.sort(bySort);
+    Object.values(childrenOf).forEach((arr) => arr.sort(bySort));
+
+    const result: Array<{ type: EntryType; depth: number }> = [];
+    const visit = (t: EntryType, depth: number) => {
+      result.push({ type: t, depth });
+      (childrenOf[t.id] || []).forEach((child) => visit(child, depth + 1));
+    };
+    roots.forEach((r) => visit(r, 0));
+    return result;
   };
 
   if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 32 }}><Spinner /></div>;
@@ -330,14 +436,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   return (
     <div style={{ display: "flex", gap: 0, height: "100%", overflow: "hidden" }}>
       {/* Left: entry types list */}
-      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", borderRight: "1px solid #1e293b", paddingRight: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 12px 8px 12px", flexShrink: 0 }}>
+      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: "1px solid #1e293b" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 12px 8px 12px", flexShrink: 0, borderBottom: "1px solid #1e293b" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>Entry Types</span>
           {canEdit && <ButtonIcon name="plus" label="New entry type" size="sm" onClick={() => setShowCreateType(true)} />}
         </div>
-        {entryTypes.length === 0 && <div style={{ color: "#64748b", fontSize: 12, padding: "0 12px" }}>No entry types yet</div>}
-        {entryTypes.map((et) => {
-          const depth = getDepth(et.id);
+        <div style={{ flex: 1, overflowY: "auto" }}>
+        {entryTypes.length === 0 && <div style={{ color: "#64748b", fontSize: 12, padding: "8px 12px" }}>No entry types yet</div>}
+        {getTreeOrderedTypes().map(({ type: et, depth }) => {
           const isActive = activeTypeId === et.id;
           return (
             <div
@@ -351,7 +457,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 background: isActive ? "#1e3a5f" : "transparent",
                 transition: "background 0.15s",
               }}
-              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#1e293b"; }}
+              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#1a2e47"; }}
               onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               onClick={() => setActiveTypeId(et.id)}
             >
@@ -360,55 +466,59 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               ) : (
                 <span style={{ color: "#64748b", flexShrink: 0 }}><Icon name={(et.icon as any) || "file"} size={12} /></span>
               )}
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: 12,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  background: et.bgColor || "#334155",
-                  color: et.fgColor || "#f1f5f9",
-                }}
-              >
-                {et.pluralName}
-              </span>
+              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    maxWidth: "100%",
+                    fontSize: 12,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: et.bgColor || "#334155",
+                    color: et.fgColor || "#f1f5f9",
+                  }}
+                >
+                  {et.pluralName}
+                </span>
+              </div>
               {canEdit && isActive && (
                 <ButtonIcon name="trash" label="Delete entry type" subvariant="danger" size="sm" onClick={() => setDeleteTypeTarget(et)} />
               )}
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Right: active type detail */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {!activeType ? (
-          <div style={{ color: "#64748b", fontSize: 13 }}>Select an entry type to edit</div>
+          <div style={{ padding: "16px 24px", color: "#64748b", fontSize: 13 }}>Select an entry type to edit</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Type header */}
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                {activeType.hasIcon ? (
-                  <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`} style={{ width: 20, height: 20, borderRadius: 4, objectFit: "cover" }} alt="" />
-                ) : (
-                  <span style={{ color: "#94a3b8" }}><Icon name={(activeType.icon as any) || "file"} size={16} /></span>
-                )}
-                {activeType.pluralName}
-              </div>
+          <>
+            {/* Sticky type header */}
+            <div style={{ flexShrink: 0, padding: "14px 24px 12px 24px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", gap: 8 }}>
+              {activeType.hasIcon ? (
+                <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`} style={{ width: 20, height: 20, borderRadius: 4, objectFit: "cover" }} alt="" />
+              ) : (
+                <span style={{ color: "#94a3b8" }}><Icon name={(activeType.icon as any) || "file"} size={16} /></span>
+              )}
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>{activeType.pluralName}</span>
+            </div>
 
-              {canEdit && (
-                <>
-                  <hr style={{ border: "none", borderTop: "1px solid #1e293b", margin: "0 0 12px 0" }} />
+            {/* Scrollable form */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {canEdit && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {/* Icon + Parent Type */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       <div>
                         <ImageUpload
+                          key={activeType.id}
                           label="Icon"
                           value={activeType.hasIcon ? `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon` : null}
                           onChange={async (dataUrl) => {
@@ -435,18 +545,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                         >
                           <option value="">None</option>
                           {entryTypes.filter((t) => t.id !== activeTypeId).map((t) => (
-                            <option key={t.id} value={t.id}>{t.pluralName}</option>
+                            <option key={t.id} value={t.id}>{getTypePath(t.id)}</option>
                           ))}
                         </select>
                       </div>
                     </div>
-                    {/* Singular + Plural Name */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <InlineEdit label="Singular Name" value={activeType.singularName} onSave={(v) => handleUpdateType("singularName", v)} />
-                      <InlineEdit label="Plural Name" value={activeType.pluralName} onSave={(v) => handleUpdateType("pluralName", v)} />
-                    </div>
-                    {/* Summary */}
-                    <InlineEdit label="Summary" value={activeType.blurb} onSave={(v) => handleUpdateType("blurb", v)} multiline />
                     {/* Badge — 3-column inline section */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
                       <div>
@@ -472,12 +575,65 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                         </span>
                       </div>
                     </div>
+                    {/* Singular + Plural Name */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <InlineEdit label="Singular Name" value={activeType.singularName} onSave={(v) => handleUpdateType("singularName", v)} />
+                      <InlineEdit label="Plural Name" value={activeType.pluralName} onSave={(v) => handleUpdateType("pluralName", v)} />
+                    </div>
+                    {/* Summary */}
+                    <InlineEdit label="Summary" value={activeType.blurb} onSave={(v) => handleUpdateType("blurb", v)} multiline />
                   </div>
-                </>
-              )}
-            </div>
+                )}
 
-            <hr style={{ border: "none", borderTop: "1px solid #1e293b" }} />
+                {/* Aliases */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9" }}>Aliases</span>
+                      <span style={{ fontSize: 12, color: "#64748b", marginLeft: 8 }}>Sub-types used for filtering</span>
+                    </div>
+                    {canEdit && (
+                      <ButtonIcon name="plus" label="Add alias" size="sm" onClick={() => { setAliasValues({ singularName: "", pluralName: "" }); setShowCreateAlias(true); }} />
+                    )}
+                  </div>
+                  {aliases.length === 0 && <div style={{ fontSize: 12, color: "#64748b" }}>No aliases yet</div>}
+                  {aliases.map((alias) => (
+                    <div key={alias.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#1e293b", borderRadius: 6 }}>
+                      {editingAlias?.id === alias.id ? (
+                        <>
+                          <input
+                            value={editingAlias.singularName}
+                            onChange={(e) => setEditingAlias({ ...editingAlias, singularName: e.target.value })}
+                            placeholder="Singular"
+                            style={{ flex: 1, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                          />
+                          <input
+                            value={editingAlias.pluralName}
+                            onChange={(e) => setEditingAlias({ ...editingAlias, pluralName: e.target.value })}
+                            placeholder="Plural"
+                            style={{ flex: 1, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                          />
+                          <ButtonIcon name="check" label="Save" size="sm" onClick={() => handleUpdateAlias(alias, { singularName: editingAlias.singularName, pluralName: editingAlias.pluralName })} />
+                          <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setEditingAlias(null)} />
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontSize: 12, color: "#e2e8f0" }}>
+                            {alias.pluralName} <span style={{ color: "#64748b" }}>/ {alias.singularName}</span>
+                          </span>
+                          {canEdit && (
+                            <>
+                              <ButtonIcon name="edit" label="Edit alias" size="sm" onClick={() => setEditingAlias({ ...alias })} />
+                              <ButtonIcon name="trash" label="Delete alias" subvariant="danger" size="sm" onClick={() => handleDeleteAlias(alias.id)} />
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <hr style={{ border: "none", borderTop: "1px solid #1e293b" }} />
 
             {/* Sections */}
             {loadingSections ? <Spinner /> : (
@@ -500,6 +656,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     entryTypes={entryTypes}
                     activeTypeId={activeTypeId!}
                     canEdit={canEdit}
+                    aliases={aliases}
                     onRename={(name) => handleRenameSection(sec, name)}
                     onDelete={() => handleDeleteSection(sec)}
                     onMoveUp={() => {
@@ -534,11 +691,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     }}
                     onAddRelated={() => { setRelatedSecId(sec.id); setRelatedTypeId(""); setRelatedFieldId(""); setRelatedTypeFields([]); }}
                     onRemoveRelated={(itemId) => handleRemoveRelated(sec.id, itemId)}
+                    onUpdateAliasRestriction={(aliasIds) => handleUpdateSectionAliasRestriction(sec, aliasIds)}
                   />
                 ))}
               </div>
             )}
           </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -568,7 +728,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               <select value={typeValues.parentTypeId} onChange={(e) => setTypeValues((p) => ({ ...p, parentTypeId: e.target.value }))}
                 style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }}>
                 <option value="">None</option>
-                {entryTypes.map((t) => <option key={t.id} value={t.id}>{t.pluralName}</option>)}
+                {entryTypes.map((t) => <option key={t.id} value={t.id}>{getTypePath(t.id)}</option>)}
               </select>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
@@ -779,6 +939,26 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           onCancel={() => setDeleteTypeTarget(null)}
         />
       )}
+
+      {showCreateAlias && (
+        <Modal
+          header={<span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>New Alias</span>}
+          closeable
+          onClose={() => setShowCreateAlias(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setShowCreateAlias(false)}>Cancel</Button>
+              <Button variant="primary" onClick={handleCreateAlias} disabled={!aliasValues.singularName.trim() || !aliasValues.pluralName.trim()}>Create</Button>
+            </>
+          }
+          maxWidth={400}
+        >
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <DynamicInput input={{ id: "singularName", label: "Singular Name", type: "text", required: true, placeholder: "e.g. Human" }} value={aliasValues.singularName} onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))} />
+            <DynamicInput input={{ id: "pluralName", label: "Plural Name", type: "text", required: true, placeholder: "e.g. Humans" }} value={aliasValues.pluralName} onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))} />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -829,36 +1009,45 @@ function InlineEdit({ label, value, onSave, multiline }: { label: string; value:
 }
 
 function PicklistOptionsEditor({ values, onChange }: { values: Array<{ value: string; label: string }>; onChange: (opts: Array<{ value: string; label: string }>) => void }) {
-  const [newVal, setNewVal] = useState("");
   const [newLabel, setNewLabel] = useState("");
+
+  const addOption = () => {
+    if (!newLabel.trim()) return;
+    const base = newLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "option";
+    const existing = new Set(values.map((o) => o.value));
+    let value = base;
+    let n = 2;
+    while (existing.has(value)) value = `${base}_${n++}`;
+    onChange([...values, { value, label: newLabel.trim() }]);
+    setNewLabel("");
+  };
+
   return (
     <div>
       <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Options</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
         {values.map((opt, i) => (
           <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>{opt.label} <span style={{ color: "#64748b" }}>({opt.value})</span></span>
+            <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>{opt.label}</span>
             <ButtonIcon name="trash" label="Remove" size="sm" subvariant="danger" onClick={() => onChange(values.filter((_, j) => j !== i))} />
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <input placeholder="Value" value={newVal} onChange={(e) => setNewVal(e.target.value)}
+        <input placeholder="Option label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addOption(); }}
           style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }} />
-        <input placeholder="Label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && newVal && newLabel) { onChange([...values, { value: newVal, label: newLabel }]); setNewVal(""); setNewLabel(""); } }}
-          style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }} />
-        <ButtonIcon name="plus" label="Add option" size="sm" onClick={() => { if (newVal && newLabel) { onChange([...values, { value: newVal, label: newLabel }]); setNewVal(""); setNewLabel(""); } }} />
+        <ButtonIcon name="plus" label="Add option" size="sm" onClick={addOption} />
       </div>
     </div>
   );
 }
 
 function SectionEditor({
-  sec, fields, relatedItems, entryTypes, activeTypeId, canEdit,
+  sec, fields, relatedItems, entryTypes, activeTypeId, canEdit, aliases,
   onRename, onDelete, onMoveUp, onMoveDown,
   onAddField, onDeleteField, onMoveFieldUp, onMoveFieldDown,
-  onAddRelated, onRemoveRelated,
+  onAddRelated, onRemoveRelated, onUpdateAliasRestriction,
 }: {
   sec: EntrySection;
   fields: EntryField[];
@@ -866,6 +1055,7 @@ function SectionEditor({
   entryTypes: EntryType[];
   activeTypeId: string;
   canEdit: boolean;
+  aliases: EntryTypeAlias[];
   onRename: (name: string) => void;
   onDelete: () => void;
   onMoveUp: () => void;
@@ -876,6 +1066,7 @@ function SectionEditor({
   onMoveFieldDown: (id: string) => void;
   onAddRelated: () => void;
   onRemoveRelated: (id: string) => void;
+  onUpdateAliasRestriction: (aliasIds: string[]) => void;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(sec.name);
@@ -884,12 +1075,7 @@ function SectionEditor({
   return (
     <div style={{ background: "#1e293b", borderRadius: 10, padding: 14 }}>
       {/* Section header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ color: "#64748b" }}><Icon name="drag" size={14} /></span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <ButtonIcon name="chevron-up" label="Move up" size="sm" onClick={onMoveUp} />
-          <ButtonIcon name="chevron-down" label="Move down" size="sm" onClick={onMoveDown} />
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
         {editingName ? (
           <div style={{ display: "flex", gap: 4, flex: 1 }}>
             <input
@@ -903,17 +1089,21 @@ function SectionEditor({
             <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setEditingName(false)} />
           </div>
         ) : (
-          <span
-            style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f1f5f9", cursor: canEdit ? "pointer" : "default" }}
-            onClick={() => canEdit && setEditingName(true)}
-          >
-            {sec.name}
-            <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>
-              ({sec.sectionType === "fields" ? "Fields" : "Related List"})
+          <>
+            <ButtonIcon name="chevron-up" label="Move up" size="sm" onClick={onMoveUp} />
+            <ButtonIcon name="chevron-down" label="Move down" size="sm" onClick={onMoveDown} />
+            <span
+              style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f1f5f9", cursor: canEdit ? "pointer" : "default" }}
+              onClick={() => canEdit && setEditingName(true)}
+            >
+              {sec.name}
+              <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>
+                ({sec.sectionType === "fields" ? "Fields" : "Related List"})
+              </span>
             </span>
-          </span>
+            {canEdit && <ButtonIcon name="trash" label="Delete section" subvariant="danger" size="sm" onClick={() => setShowDeleteSec(true)} />}
+          </>
         )}
-        {canEdit && <ButtonIcon name="trash" label="Delete section" subvariant="danger" size="sm" onClick={() => setShowDeleteSec(true)} />}
       </div>
 
       {/* Fields section */}
@@ -922,10 +1112,10 @@ function SectionEditor({
           {fields.map((field, fi) => (
             <div key={field.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", background: "#0f172a", borderRadius: 6 }}>
               {canEdit && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <>
                   <ButtonIcon name="chevron-up" label="Move up" size="sm" onClick={() => onMoveFieldUp(field.id)} />
                   <ButtonIcon name="chevron-down" label="Move down" size="sm" onClick={() => onMoveFieldDown(field.id)} />
-                </div>
+                </>
               )}
               <span style={{ flex: 1, fontSize: 12, color: "#e2e8f0" }}>{field.name}</span>
               <span style={{ fontSize: 11, color: "#94a3b8", background: "#1e293b", padding: "2px 6px", borderRadius: 4 }}>
@@ -972,6 +1162,37 @@ function SectionEditor({
               <Icon name="plus" size={12} /> Add Entry Type Pairing
             </button>
           )}
+        </div>
+      )}
+
+      {/* Alias restriction */}
+      {aliases.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1e293b" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Visible for</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            <span
+              onClick={() => canEdit && onUpdateAliasRestriction([])}
+              style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: !sec.config?.aliasIds?.length ? "#3b82f6" : "#0f172a", color: !sec.config?.aliasIds?.length ? "#fff" : "#94a3b8", border: `1px solid ${!sec.config?.aliasIds?.length ? "#3b82f6" : "#334155"}` }}
+            >
+              All
+            </span>
+            {aliases.map((alias) => {
+              const selected = (sec.config?.aliasIds || []).includes(alias.id);
+              return (
+                <span
+                  key={alias.id}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    const cur = sec.config?.aliasIds || [];
+                    onUpdateAliasRestriction(selected ? cur.filter((id) => id !== alias.id) : [...cur, alias.id]);
+                  }}
+                  style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: selected ? "#3b82f6" : "#0f172a", color: selected ? "#fff" : "#94a3b8", border: `1px solid ${selected ? "#3b82f6" : "#334155"}` }}
+                >
+                  {alias.pluralName}
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
 

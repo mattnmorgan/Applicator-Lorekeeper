@@ -10,7 +10,7 @@ export type SettingsTab = "details" | "metadata" | "membership" | "delete";
 
 export type AppView =
   | { type: "lorebooks" }
-  | { type: "lorebook"; lorebookId: string; entryTypeId?: string; recordId?: string }
+  | { type: "lorebook"; lorebookId: string; entryTypeId?: string; recordId?: string; aliasId?: string }
   | { type: "settings"; lorebookId: string; tab: SettingsTab };
 
 export default function Lorekeeper({ context }: { context?: UiContext }) {
@@ -28,6 +28,7 @@ export default function Lorekeeper({ context }: { context?: UiContext }) {
           lorebookId={view.lorebookId}
           entryTypeId={view.entryTypeId}
           recordId={view.recordId}
+          aliasId={view.aliasId}
           navigate={navigate}
         />
       )}

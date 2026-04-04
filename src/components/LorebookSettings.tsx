@@ -74,7 +74,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
               color: active ? "#93c5fd" : isDanger ? "#ef4444" : "#94a3b8",
               transition: "background 0.15s",
             }}
-            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#1e293b"; }}
+            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#1a2e47"; }}
             onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
             onClick={() => navigate({ type: "settings", lorebookId, tab: t.id })}
           >
