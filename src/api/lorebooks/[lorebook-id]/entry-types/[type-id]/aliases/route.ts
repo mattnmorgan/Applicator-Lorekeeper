@@ -59,6 +59,8 @@ export async function POST(
       entryTypeId: params.typeId,
       singularName: body.singularName.trim(),
       pluralName: body.pluralName.trim(),
+      bgColor: body.bgColor || "#1e293b",
+      fgColor: body.fgColor || "#94a3b8",
     });
 
     return NextResponse.json({ id: record.id, ...record.data }, { status: 201 });

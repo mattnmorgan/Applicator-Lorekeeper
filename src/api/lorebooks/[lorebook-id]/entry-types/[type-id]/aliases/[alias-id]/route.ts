@@ -21,6 +21,8 @@ export async function PATCH(
     const updates: any = {};
     if (body.singularName !== undefined) updates.singularName = body.singularName.trim();
     if (body.pluralName !== undefined) updates.pluralName = body.pluralName.trim();
+    if (body.bgColor !== undefined) updates.bgColor = body.bgColor;
+    if (body.fgColor !== undefined) updates.fgColor = body.fgColor;
 
     const table = await aliases.getTable();
     const updated = await aliases.updateRecord(table, params.aliasId, updates);

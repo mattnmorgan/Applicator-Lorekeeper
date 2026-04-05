@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ButtonIcon, Icon, ConfirmModal, Spinner } from "@applicator/sdk/components";
+import { useState, useEffect } from "react";
+import { ButtonIcon, Icon, ConfirmModal, Spinner, Modal, Button, ImageUpload } from "@applicator/sdk/components";
 
 interface EntryType {
   id: string;
   singularName: string;
   pluralName: string;
   icon: string;
+  hasIcon: boolean;
   bgColor: string;
   fgColor: string;
+}
+
+interface EntryTypeAlias {
+  id: string;
+  entryTypeId: string;
+  singularName: string;
+  pluralName: string;
+  bgColor?: string;
+  fgColor?: string;
 }
 
 interface EntryRecord {
@@ -18,12 +28,14 @@ interface EntryRecord {
   blurb: string;
   hasIcon: boolean;
   entryTypeId: string;
+  aliasId?: string;
 }
 
 interface Props {
   lorebookId: string;
   entryTypeId: string;
   entryTypes: EntryType[];
+  aliasesByTypeId: Record<string, EntryTypeAlias[]>;
   canEdit: boolean;
   aliasId?: string;
   aliasName?: string;
@@ -35,6 +47,7 @@ export default function EntryTypeRecords({
   lorebookId,
   entryTypeId,
   entryTypes,
+  aliasesByTypeId,
   canEdit,
   aliasId,
   aliasName,
@@ -45,12 +58,12 @@ export default function EntryTypeRecords({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<EntryRecord | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [creating, setCreating] = useState(false);
+  const [createValues, setCreateValues] = useState({ name: "", blurb: "", aliasId: "", iconData: "" });
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
+  const aliases = aliasesByTypeId[entryTypeId] || [];
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -78,23 +91,31 @@ export default function EntryTypeRecords({
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
-    if (showCreate) inputRef.current?.focus();
-  }, [showCreate]);
-
   const handleCreate = async () => {
-    if (!newName.trim()) return;
+    if (!createValues.name.trim()) return;
     setCreating(true);
     try {
+      const effectiveAliasId = aliasId || createValues.aliasId || "";
       const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim(), ...(aliasId ? { aliasId } : {}) }),
+        body: JSON.stringify({
+          name: createValues.name.trim(),
+          blurb: createValues.blurb || "",
+          ...(effectiveAliasId ? { aliasId: effectiveAliasId } : {}),
+        }),
       });
       if (res.ok) {
         const record = await res.json();
-        setNewName("");
+        if (createValues.iconData) {
+          await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${record.id}/icon`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ iconData: createValues.iconData }),
+          });
+        }
         setShowCreate(false);
+        setCreateValues({ name: "", blurb: "", aliasId: "", iconData: "" });
         addToast(`${entryType?.singularName || "Entry"} created`);
         onSelectRecord(record.id);
       } else {
@@ -144,8 +165,16 @@ export default function EntryTypeRecords({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {entryType && (
-            <span style={{ color: "#94a3b8" }}>
-              <Icon name={(entryType.icon as any) || "file"} size={18} />
+            <span style={{ color: "#94a3b8", flexShrink: 0 }}>
+              {entryType.hasIcon ? (
+                <img
+                  src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`}
+                  style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", display: "block" }}
+                  alt=""
+                />
+              ) : (
+                <Icon name={(entryType.icon as any) || "file"} size={18} />
+              )}
             </span>
           )}
           <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
@@ -162,7 +191,10 @@ export default function EntryTypeRecords({
           <ButtonIcon
             name="plus"
             label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
-            onClick={() => setShowCreate(true)}
+            onClick={() => {
+              setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
+              setShowCreate(true);
+            }}
           />
         )}
       </div>
@@ -192,103 +224,160 @@ export default function EntryTypeRecords({
         </div>
       </div>
 
-      {/* Create inline input */}
-      {showCreate && (
-        <div style={{ padding: "4px 16px 8px", flexShrink: 0 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              ref={inputRef}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
-                if (e.key === "Escape") { setShowCreate(false); setNewName(""); }
-              }}
-              placeholder={`${entryType?.singularName || "Entry"} name…`}
-              style={{
-                flex: 1,
-                background: "#1e293b",
-                border: "1px solid #3b82f6",
-                borderRadius: 6,
-                padding: "6px 10px",
-                color: "#f1f5f9",
-                fontSize: 13,
-                outline: "none",
-              }}
-            />
-            <ButtonIcon name="check" label="Create" onClick={handleCreate} disabled={!newName.trim() || creating} />
-            <ButtonIcon name="close" label="Cancel" onClick={() => { setShowCreate(false); setNewName(""); }} />
-          </div>
-        </div>
-      )}
-
       {/* List */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 32 }}><Spinner /></div>
         ) : filtered.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 40, gap: 8, color: "#64748b" }}>
-            <Icon name={(entryType?.icon as any) || "file"} size={32} />
+            {entryType?.hasIcon ? (
+              <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`} style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} alt="" />
+            ) : (
+              <Icon name={(entryType?.icon as any) || "file"} size={32} />
+            )}
             <div style={{ fontSize: 13 }}>
               {search ? "No matching entries" : `No ${entryType?.pluralName?.toLowerCase() || "entries"} yet`}
             </div>
           </div>
         ) : (
-          filtered.map((record) => (
-            <div
-              key={record.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "8px 16px",
-                borderBottom: "1px solid #1e293b",
-                cursor: "pointer",
-                transition: "background 0.12s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#0f1e36")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              onClick={() => onSelectRecord(record.id)}
-            >
-              <div style={{
-                width: 32, height: 32, borderRadius: 6, overflow: "hidden", flexShrink: 0,
-                background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {record.hasIcon ? (
-                  <img
-                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${record.id}/icon`}
-                    style={{ width: 32, height: 32, objectFit: "cover" }}
-                    alt=""
-                  />
-                ) : (
-                  <span style={{ color: "#64748b" }}>
-                    <Icon name={(entryType?.icon as any) || "file"} size={14} />
+          filtered.map((record) => {
+            const recordAlias = record.aliasId ? aliases.find((a) => a.id === record.aliasId) : undefined;
+            return (
+              <div
+                key={record.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 16px",
+                  borderBottom: "1px solid #1e293b",
+                  cursor: "pointer",
+                  transition: "background 0.12s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#0f1e36")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                onClick={() => onSelectRecord(record.id)}
+              >
+                <div style={{
+                  width: 32, height: 32, borderRadius: 6, overflow: "hidden", flexShrink: 0,
+                  background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {record.hasIcon ? (
+                    <img
+                      src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${record.id}/icon`}
+                      style={{ width: 32, height: 32, objectFit: "cover" }}
+                      alt=""
+                    />
+                  ) : (
+                    <span style={{ color: "#64748b" }}>
+                      <Icon name={(entryType?.icon as any) || "file"} size={14} />
+                    </span>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9" }}>{record.name}</div>
+                  {record.blurb && (
+                    <div style={{ fontSize: 11, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {record.blurb}
+                    </div>
+                  )}
+                </div>
+                {recordAlias && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      background: recordAlias.bgColor || "#1e293b",
+                      color: recordAlias.fgColor || "#94a3b8",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {recordAlias.singularName}
                   </span>
                 )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9" }}>{record.name}</div>
-                {record.blurb && (
-                  <div style={{ fontSize: 11, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {record.blurb}
+                {canEdit && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ButtonIcon
+                      name="trash"
+                      label="Delete entry"
+                      subvariant="danger"
+                      size="sm"
+                      onClick={() => setDeleteTarget(record)}
+                    />
                   </div>
                 )}
               </div>
-              {canEdit && (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <ButtonIcon
-                    name="trash"
-                    label="Delete entry"
-                    subvariant="danger"
-                    size="sm"
-                    onClick={() => setDeleteTarget(record)}
-                  />
-                </div>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* Create modal */}
+      {showCreate && (
+        <Modal
+          header={<span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>New {entryType?.singularName || "Entry"}</span>}
+          closeable
+          onClose={() => setShowCreate(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
+              <Button variant="primary" onClick={handleCreate} disabled={creating || !createValues.name.trim()}>
+                {creating ? "Creating…" : "Create"}
+              </Button>
+            </>
+          }
+          maxWidth={460}
+        >
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+              <ImageUpload
+                label="Icon (optional)"
+                value={createValues.iconData || null}
+                onChange={(v) => setCreateValues((p) => ({ ...p, iconData: v || "" }))}
+                previewSize={64}
+                previewRadius={8}
+              />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Name <span style={{ color: "#ef4444" }}>*</span></div>
+                  <input
+                    autoFocus
+                    value={createValues.name}
+                    onChange={(e) => setCreateValues((p) => ({ ...p, name: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+                    placeholder={`${entryType?.singularName || "Entry"} name…`}
+                    style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Summary</div>
+                  <input
+                    value={createValues.blurb}
+                    onChange={(e) => setCreateValues((p) => ({ ...p, blurb: e.target.value }))}
+                    placeholder="Brief description…"
+                    style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Subtype selector — only show if no aliasId context and aliases exist */}
+            {!aliasId && aliases.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Subtype (optional)</div>
+                <select
+                  value={createValues.aliasId}
+                  onChange={(e) => setCreateValues((p) => ({ ...p, aliasId: e.target.value }))}
+                  style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }}
+                >
+                  <option value="">None</option>
+                  {aliases.map((a) => <option key={a.id} value={a.id}>{a.singularName}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {deleteTarget && (
         <ConfirmModal

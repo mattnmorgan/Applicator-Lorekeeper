@@ -11,17 +11,32 @@ export async function GET(
     const level = await getLorebookAccess(context, params.lorebookId);
     if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const types = context.recordManager("lorekeeper", "entry_type");
-    const result = await types.readRecords({
-      filters: [{ field: "lorebookId", operator: "=", value: params.lorebookId }],
-      limit: 500,
-    });
+    const [typesResult, aliasesResult] = await Promise.all([
+      context.recordManager("lorekeeper", "entry_type").readRecords({
+        filters: [{ field: "lorebookId", operator: "=", value: params.lorebookId }],
+        limit: 500,
+      }),
+      context.recordManager("lorekeeper", "entry_type_alias").readRecords({
+        filters: [{ field: "lorebookId", operator: "=", value: params.lorebookId }],
+        limit: 2000,
+      }),
+    ]);
 
-    const sorted = result.records
+    const sorted = typesResult.records
       .map((r: any) => ({ id: r.id, ...r.data }))
       .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-    return NextResponse.json({ entryTypes: sorted });
+    const aliasesByTypeId: Record<string, any[]> = {};
+    for (const r of aliasesResult.records) {
+      const typeId = r.data.entryTypeId;
+      if (!aliasesByTypeId[typeId]) aliasesByTypeId[typeId] = [];
+      aliasesByTypeId[typeId].push({ id: r.id, ...r.data });
+    }
+    for (const arr of Object.values(aliasesByTypeId)) {
+      arr.sort((a, b) => a.pluralName.localeCompare(b.pluralName));
+    }
+
+    return NextResponse.json({ entryTypes: sorted, aliasesByTypeId });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

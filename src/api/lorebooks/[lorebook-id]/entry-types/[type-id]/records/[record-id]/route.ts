@@ -44,6 +44,7 @@ export async function PATCH(
     if (body.name !== undefined) updates.name = body.name;
     if (body.blurb !== undefined) updates.blurb = body.blurb;
     if (body.fieldData !== undefined) updates.fieldData = body.fieldData;
+    if (body.aliasId !== undefined) updates.aliasId = body.aliasId;
 
     const table = await records.getTable();
     const updated = await records.updateRecord(table, params.recordId, updates);

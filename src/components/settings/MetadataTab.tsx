@@ -21,6 +21,8 @@ interface EntryTypeAlias {
   entryTypeId: string;
   singularName: string;
   pluralName: string;
+  bgColor?: string;
+  fgColor?: string;
 }
 
 interface EntrySection {
@@ -94,8 +96,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   // Aliases
   const [aliases, setAliases] = useState<EntryTypeAlias[]>([]);
   const [showCreateAlias, setShowCreateAlias] = useState(false);
-  const [aliasValues, setAliasValues] = useState({ singularName: "", pluralName: "" });
+  const [aliasValues, setAliasValues] = useState({ singularName: "", pluralName: "", bgColor: "#1e293b", fgColor: "#94a3b8" });
   const [editingAlias, setEditingAlias] = useState<EntryTypeAlias | null>(null);
+
+  // Field editing
+  const [editingField, setEditingField] = useState<EntryField | null>(null);
+  const [editingFieldSectionId, setEditingFieldSectionId] = useState<string | null>(null);
+  const [editFieldValues, setEditFieldValues] = useState<Record<string, any>>({});
+  const [usedPicklistValues, setUsedPicklistValues] = useState<Set<string>>(new Set());
 
   // DnD
   const dragSecId = useRef<string | null>(null);
@@ -250,7 +258,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
     let config: any = {};
     if (fieldValues.fieldType === "picklist") {
-      config = { options: [], multiselect: !!fieldValues.multiselect, allowCustom: !!fieldValues.allowCustom };
+      config = { options: fieldValues.options || [], multiselect: !!fieldValues.multiselect, allowCustom: !!fieldValues.allowCustom };
     } else if (fieldValues.fieldType === "number") {
       config = { decimals: fieldValues.decimals ?? 0, min: fieldValues.min, max: fieldValues.max };
     } else if (fieldValues.fieldType === "lookup") {
@@ -289,6 +297,64 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setFieldsBySection((p) => ({ ...p, [sectionId]: (p[sectionId] || []).filter((f) => f.id !== fieldId) }));
       addToast("Field deleted");
     } else addToast("Failed to delete field", "error");
+  };
+
+  const openEditField = async (field: EntryField, sectionId: string) => {
+    setEditingField(field);
+    setEditingFieldSectionId(sectionId);
+    const cfg = (field.config || {}) as any;
+    setEditFieldValues({ options: cfg.options ? [...cfg.options] : [], multiselect: cfg.multiselect, allowCustom: cfg.allowCustom });
+
+    // Fetch all records for this entry type to determine which picklist values are in use
+    if (field.fieldType === "picklist" && activeTypeId) {
+      try {
+        const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/records`);
+        if (res.ok) {
+          const data = await res.json();
+          const used = new Set<string>();
+          for (const record of data.records || []) {
+            const val = record.fieldData?.[field.id];
+            if (Array.isArray(val)) val.forEach((v: string) => used.add(v));
+            else if (val) used.add(String(val));
+          }
+          setUsedPicklistValues(used);
+        }
+      } catch {}
+    } else {
+      setUsedPicklistValues(new Set());
+    }
+  };
+
+  const handleSaveField = async () => {
+    if (!editingField || !editingFieldSectionId || !activeTypeId) return;
+    const updates: any = {};
+    if (editingField.fieldType === "picklist") {
+      updates.config = {
+        options: editFieldValues.options || [],
+        multiselect: !!editFieldValues.multiselect,
+        allowCustom: !!editFieldValues.allowCustom,
+      };
+    }
+    const res = await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${editingFieldSectionId}/fields/${editingField.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      }
+    );
+    if (res.ok) {
+      const updated = await res.json();
+      setFieldsBySection((p) => ({
+        ...p,
+        [editingFieldSectionId]: (p[editingFieldSectionId] || []).map((f) => f.id === editingField.id ? updated : f),
+      }));
+      setEditingField(null);
+      setEditingFieldSectionId(null);
+      addToast("Field updated");
+    } else {
+      addToast("Failed to update field", "error");
+    }
   };
 
   const handleReorderFields = async (sectionId: string, newOrder: EntryField[]) => {
@@ -351,7 +417,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     if (res.ok) {
       const a = await res.json();
       setAliases((prev) => [...prev, a].sort((x, y) => x.pluralName.localeCompare(y.pluralName)));
-      setAliasValues({ singularName: "", pluralName: "" });
+      setAliasValues({ singularName: "", pluralName: "", bgColor: "#1e293b", fgColor: "#94a3b8" });
       setShowCreateAlias(false);
       addToast("Alias created");
     } else addToast("Failed to create alias", "error");
@@ -417,10 +483,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         roots.push(t);
       }
     });
-    // Sort children and roots by sortOrder
-    const bySort = (a: EntryType, b: EntryType) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    roots.sort(bySort);
-    Object.values(childrenOf).forEach((arr) => arr.sort(bySort));
+    // Sort children and roots alphabetically by pluralName
+    const byName = (a: EntryType, b: EntryType) => a.pluralName.localeCompare(b.pluralName);
+    roots.sort(byName);
+    Object.values(childrenOf).forEach((arr) => arr.sort(byName));
 
     const result: Array<{ type: EntryType; depth: number }> = [];
     const visit = (t: EntryType, depth: number) => {
@@ -593,31 +659,36 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       <span style={{ fontSize: 12, color: "#64748b", marginLeft: 8 }}>Sub-types used for filtering</span>
                     </div>
                     {canEdit && (
-                      <ButtonIcon name="plus" label="Add alias" size="sm" onClick={() => { setAliasValues({ singularName: "", pluralName: "" }); setShowCreateAlias(true); }} />
+                      <ButtonIcon name="plus" label="Add alias" size="sm" onClick={() => { setAliasValues({ singularName: "", pluralName: "", bgColor: "#1e293b", fgColor: "#94a3b8" }); setShowCreateAlias(true); }} />
                     )}
                   </div>
                   {aliases.length === 0 && <div style={{ fontSize: 12, color: "#64748b" }}>No aliases yet</div>}
                   {aliases.map((alias) => (
                     <div key={alias.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#1e293b", borderRadius: 6 }}>
                       {editingAlias?.id === alias.id ? (
-                        <>
+                        <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
                           <input
                             value={editingAlias.singularName}
                             onChange={(e) => setEditingAlias({ ...editingAlias, singularName: e.target.value })}
                             placeholder="Singular"
-                            style={{ flex: 1, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                            style={{ flex: 1, minWidth: 0, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
                           />
                           <input
                             value={editingAlias.pluralName}
                             onChange={(e) => setEditingAlias({ ...editingAlias, pluralName: e.target.value })}
                             placeholder="Plural"
-                            style={{ flex: 1, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                            style={{ flex: 1, minWidth: 0, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
                           />
-                          <ButtonIcon name="check" label="Save" size="sm" onClick={() => handleUpdateAlias(alias, { singularName: editingAlias.singularName, pluralName: editingAlias.pluralName })} />
+                          <input type="color" value={editingAlias.bgColor || "#1e293b"} onChange={(e) => setEditingAlias({ ...editingAlias, bgColor: e.target.value })} title="Background color" style={{ width: 28, height: 26, border: "1px solid #334155", borderRadius: 3, cursor: "pointer", background: "transparent", flexShrink: 0 }} />
+                          <input type="color" value={editingAlias.fgColor || "#94a3b8"} onChange={(e) => setEditingAlias({ ...editingAlias, fgColor: e.target.value })} title="Foreground color" style={{ width: 28, height: 26, border: "1px solid #334155", borderRadius: 3, cursor: "pointer", background: "transparent", flexShrink: 0 }} />
+                          <ButtonIcon name="check" label="Save" size="sm" onClick={() => handleUpdateAlias(alias, { singularName: editingAlias.singularName, pluralName: editingAlias.pluralName, bgColor: editingAlias.bgColor, fgColor: editingAlias.fgColor })} />
                           <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setEditingAlias(null)} />
-                        </>
+                        </div>
                       ) : (
                         <>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8", flexShrink: 0 }}>
+                            {alias.singularName}
+                          </span>
                           <span style={{ flex: 1, fontSize: 12, color: "#e2e8f0" }}>
                             {alias.pluralName} <span style={{ color: "#64748b" }}>/ {alias.singularName}</span>
                           </span>
@@ -672,6 +743,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       handleReorderSections(newOrder);
                     }}
                     onAddField={() => { setCreateFieldSectionId(sec.id); setFieldValues({ name: "", fieldType: "text" }); }}
+                    onEditField={(field) => openEditField(field, sec.id)}
                     onDeleteField={(fieldId) => handleDeleteField(sec.id, fieldId)}
                     onMoveFieldUp={(fieldId) => {
                       const fields = fieldsBySection[sec.id] || [];
@@ -808,7 +880,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               <>
                 <DynamicInput input={{ id: "multiselect", label: "Allow multiple selections", type: "toggle" }} value={fieldValues.multiselect} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
                 <DynamicInput input={{ id: "allowCustom", label: "Allow user-defined custom values", type: "toggle" }} value={fieldValues.allowCustom} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
-                <PicklistOptionsEditor values={fieldValues.options || []} onChange={(opts) => setFieldValues((p) => ({ ...p, options: opts }))} />
+                <PicklistOptionsEditor values={fieldValues.options || []} usedValues={new Set()} onChange={(opts) => setFieldValues((p) => ({ ...p, options: opts }))} />
               </>
             )}
             {fieldValues.fieldType === "number" && (
@@ -956,6 +1028,49 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
             <DynamicInput input={{ id: "singularName", label: "Singular Name", type: "text", required: true, placeholder: "e.g. Human" }} value={aliasValues.singularName} onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))} />
             <DynamicInput input={{ id: "pluralName", label: "Plural Name", type: "text", required: true, placeholder: "e.g. Humans" }} value={aliasValues.pluralName} onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))} />
+            <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Background</div>
+                <input type="color" value={aliasValues.bgColor} onChange={(e) => setAliasValues((p) => ({ ...p, bgColor: e.target.value }))}
+                  style={{ width: "100%", height: 32, borderRadius: 6, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Foreground</div>
+                <input type="color" value={aliasValues.fgColor} onChange={(e) => setAliasValues((p) => ({ ...p, fgColor: e.target.value }))}
+                  style={{ width: "100%", height: 32, borderRadius: 6, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Preview</div>
+                <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 4, background: aliasValues.bgColor, color: aliasValues.fgColor }}>
+                  {aliasValues.singularName || "Example"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* Edit field modal */}
+      {editingField && editingField.fieldType === "picklist" && (
+        <Modal
+          header={<span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>Edit Field: {editingField.name}</span>}
+          closeable
+          onClose={() => setEditingField(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setEditingField(null)}>Cancel</Button>
+              <Button variant="primary" onClick={handleSaveField}>Save</Button>
+            </>
+          }
+          maxWidth={480}
+        >
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <DynamicInput input={{ id: "multiselect", label: "Allow multiple selections", type: "toggle" }} value={editFieldValues.multiselect} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
+            <DynamicInput input={{ id: "allowCustom", label: "Allow user-defined custom values", type: "toggle" }} value={editFieldValues.allowCustom} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
+            <PicklistOptionsEditor
+              values={editFieldValues.options || []}
+              usedValues={usedPicklistValues}
+              onChange={(opts) => setEditFieldValues((p) => ({ ...p, options: opts }))}
+            />
           </div>
         </Modal>
       )}
@@ -1008,8 +1123,14 @@ function InlineEdit({ label, value, onSave, multiline }: { label: string; value:
   );
 }
 
-function PicklistOptionsEditor({ values, onChange }: { values: Array<{ value: string; label: string }>; onChange: (opts: Array<{ value: string; label: string }>) => void }) {
+function PicklistOptionsEditor({ values, usedValues = new Set(), onChange }: {
+  values: Array<{ value: string; label: string }>;
+  usedValues?: Set<string>;
+  onChange: (opts: Array<{ value: string; label: string }>) => void;
+}) {
   const [newLabel, setNewLabel] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingLabel, setEditingLabel] = useState("");
 
   const addOption = () => {
     if (!newLabel.trim()) return;
@@ -1022,19 +1143,46 @@ function PicklistOptionsEditor({ values, onChange }: { values: Array<{ value: st
     setNewLabel("");
   };
 
+  const saveEdit = (i: number) => {
+    if (!editingLabel.trim()) return;
+    const updated = values.map((o, j) => j === i ? { ...o, label: editingLabel.trim() } : o);
+    onChange(updated);
+    setEditingIdx(null);
+  };
+
   return (
     <div>
       <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Options</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
         {values.map((opt, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>{opt.label}</span>
-            <ButtonIcon name="trash" label="Remove" size="sm" subvariant="danger" onClick={() => onChange(values.filter((_, j) => j !== i))} />
+          <div key={opt.value} style={{ display: "flex", gap: 6, alignItems: "center", padding: "3px 6px", background: "#0f172a", borderRadius: 4 }}>
+            {editingIdx === i ? (
+              <>
+                <input
+                  value={editingLabel}
+                  onChange={(e) => setEditingLabel(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") saveEdit(i); if (e.key === "Escape") setEditingIdx(null); }}
+                  style={{ flex: 1, background: "#1e293b", border: "1px solid #3b82f6", borderRadius: 4, padding: "3px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                />
+                <ButtonIcon name="check" label="Save" size="sm" onClick={() => saveEdit(i)} />
+                <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setEditingIdx(null)} />
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 12, color: "#e2e8f0", flex: 1 }}>{opt.label}</span>
+                <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>{opt.value}</span>
+                <ButtonIcon name="edit" label="Edit label" size="sm" onClick={() => { setEditingIdx(i); setEditingLabel(opt.label); }} />
+                {!usedValues.has(opt.value) && (
+                  <ButtonIcon name="trash" label="Remove" size="sm" subvariant="danger" onClick={() => onChange(values.filter((_, j) => j !== i))} />
+                )}
+              </>
+            )}
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <input placeholder="Option label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
+        <input placeholder="New option label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") addOption(); }}
           style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "4px 6px", color: "#f1f5f9", fontSize: 12, outline: "none" }} />
         <ButtonIcon name="plus" label="Add option" size="sm" onClick={addOption} />
@@ -1046,7 +1194,7 @@ function PicklistOptionsEditor({ values, onChange }: { values: Array<{ value: st
 function SectionEditor({
   sec, fields, relatedItems, entryTypes, activeTypeId, canEdit, aliases,
   onRename, onDelete, onMoveUp, onMoveDown,
-  onAddField, onDeleteField, onMoveFieldUp, onMoveFieldDown,
+  onAddField, onEditField, onDeleteField, onMoveFieldUp, onMoveFieldDown,
   onAddRelated, onRemoveRelated, onUpdateAliasRestriction,
 }: {
   sec: EntrySection;
@@ -1061,6 +1209,7 @@ function SectionEditor({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onAddField: () => void;
+  onEditField: (field: EntryField) => void;
   onDeleteField: (id: string) => void;
   onMoveFieldUp: (id: string) => void;
   onMoveFieldDown: (id: string) => void;
@@ -1121,6 +1270,9 @@ function SectionEditor({
               <span style={{ fontSize: 11, color: "#94a3b8", background: "#1e293b", padding: "2px 6px", borderRadius: 4 }}>
                 {FIELD_TYPE_LABELS[field.fieldType] || field.fieldType}
               </span>
+              {canEdit && field.fieldType === "picklist" && (
+                <ButtonIcon name="edit" label="Edit field" size="sm" onClick={() => onEditField(field)} />
+              )}
               {canEdit && (
                 <ButtonIcon name="trash" label="Delete field" subvariant="danger" size="sm" onClick={() => onDeleteField(field.id)} />
               )}

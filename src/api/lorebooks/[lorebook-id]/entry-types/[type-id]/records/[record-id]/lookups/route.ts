@@ -28,7 +28,7 @@ export async function GET(
         ...filters,
         { field: "record1", operator: "=", value: params.recordId },
       ],
-      condition: filters.length === 1 ? "1 AND 3" : "1 AND 2 AND 3",
+      condition: filters.length === 1 ? "1 AND 2" : "1 AND 2 AND 3",
       limit: 500,
     });
 
@@ -37,7 +37,7 @@ export async function GET(
         ...filters,
         { field: "record2", operator: "=", value: params.recordId },
       ],
-      condition: filters.length === 1 ? "1 AND 3" : "1 AND 2 AND 3",
+      condition: filters.length === 1 ? "1 AND 2" : "1 AND 2 AND 3",
       limit: 500,
     });
 

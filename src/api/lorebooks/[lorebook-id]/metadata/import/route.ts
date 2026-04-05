@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
 import { getLorebookAccess, canEdit } from "../../../../../lib/permissions";
+import { lorebookIconPath, entryTypeIconPath, saveIconFromDataUrl } from "../../../../../lib/iconStorage";
 
 export async function POST(
   req: NextRequest,
@@ -21,6 +22,7 @@ export async function POST(
     const secTable = await rm("entry_section").getTable();
     const fieldTable = await rm("entry_field").getTable();
     const relTable = await rm("related_list_item").getTable();
+    const aliasTable = await rm("entry_type_alias").getTable();
 
     // First pass: create all entry types (resolve parent refs after)
     const nameToId: Record<string, string> = {};
@@ -31,7 +33,8 @@ export async function POST(
         lorebookId: params.lorebookId,
         singularName: et.singularName,
         pluralName: et.pluralName,
-        icon: et.icon || "file",
+        // sdkIcon is the new field name; fall back to old "icon" if it's not image data
+        icon: et.sdkIcon || (et.icon && !et.icon.startsWith("data:") ? et.icon : null) || "file",
         blurb: et.blurb || "",
         parentTypeId: "",
         bgColor: et.bgColor || "#334155",
@@ -51,10 +54,24 @@ export async function POST(
       }
     }
 
-    // Second pass: create sections, fields, and related list items
+    // Second pass: create sections, fields, and aliases per type
     for (const { record: typeRecord, source } of createdTypes) {
+      // Create aliases
+      if (Array.isArray(source.aliases)) {
+        for (const alias of source.aliases) {
+          if (!alias.singularName?.trim() || !alias.pluralName?.trim()) continue;
+          await rm("entry_type_alias").createRecord(aliasTable, {
+            lorebookId: params.lorebookId,
+            entryTypeId: typeRecord.id,
+            singularName: alias.singularName.trim(),
+            pluralName: alias.pluralName.trim(),
+            bgColor: alias.bgColor || "#1e293b",
+            fgColor: alias.fgColor || "#94a3b8",
+          });
+        }
+      }
+
       if (!source.sections) continue;
-      const fieldNameToId: Record<string, Record<string, string>> = {};
 
       for (const sec of source.sections) {
         const secRecord = await rm("entry_section").createRecord(secTable, {
@@ -65,29 +82,32 @@ export async function POST(
           sortOrder: sec.sortOrder ?? 0,
         });
 
-        fieldNameToId[sec.name] = {};
-
         if (sec.fields) {
           for (const field of sec.fields) {
-            const fieldRecord = await rm("entry_field").createRecord(fieldTable, {
+            let config = field.config || {};
+
+            // Resolve lookup targetEntryTypeNames → IDs
+            if (field.fieldType === "lookup" && Array.isArray(config.targetEntryTypeNames)) {
+              const resolvedIds = config.targetEntryTypeNames
+                .map((name: string) => nameToId[name])
+                .filter(Boolean);
+              config = {
+                ...config,
+                targetEntryTypeIds: resolvedIds,
+                targetEntryTypeNames: undefined,
+              };
+              delete config.targetEntryTypeNames;
+            }
+
+            await rm("entry_field").createRecord(fieldTable, {
               lorebookId: params.lorebookId,
               entryTypeId: typeRecord.id,
               sectionId: secRecord.id,
               name: field.name,
               fieldType: field.fieldType,
-              config: field.config || {},
+              config,
               sortOrder: field.sortOrder ?? 0,
             });
-            fieldNameToId[sec.name][field.name] = fieldRecord.id;
-          }
-        }
-
-        if (sec.sectionType === "related_list" && sec.relatedItems) {
-          for (const ri of sec.relatedItems) {
-            const refTypeId = nameToId[ri.entryTypeName];
-            if (!refTypeId) continue;
-            // Find the field by name in the referenced entry type's sections
-            // (field IDs not yet available for cross-type lookups — deferred to a second pass below)
           }
         }
       }
@@ -135,6 +155,31 @@ export async function POST(
             fieldId: fieldResult.records[0].id,
           });
         }
+      }
+    }
+
+    // Restore lorebook icon — accepts new field name "icon" or old "lorebookIconBase64"
+    const lorebookIconData = body.icon || body.lorebookIconBase64;
+    if (lorebookIconData) {
+      try {
+        const iconPath = lorebookIconPath(params.lorebookId);
+        await saveIconFromDataUrl(context.appFileManager, iconPath, lorebookIconData);
+        const lorebooks = context.recordManager("lorekeeper", "lorebook");
+        const lorebookTable = await lorebooks.getTable();
+        await lorebooks.updateRecord(lorebookTable, params.lorebookId, { hasIcon: true });
+      } catch {}
+    }
+
+    // Restore entry type icons — accepts new field "icon" (data URL) or old "iconBase64"
+    for (const { record: typeRecord, source } of createdTypes) {
+      const iconData = (source.icon && source.icon.startsWith("data:")) ? source.icon : source.iconBase64;
+      if (iconData) {
+        try {
+          const iconPath = entryTypeIconPath(params.lorebookId, typeRecord.id);
+          await saveIconFromDataUrl(context.appFileManager, iconPath, iconData);
+          const table = await rm("entry_type").getTable();
+          await rm("entry_type").updateRecord(table, typeRecord.id, { hasIcon: true });
+        } catch {}
       }
     }
 

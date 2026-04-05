@@ -34,6 +34,8 @@ interface EntryTypeAlias {
   entryTypeId: string;
   singularName: string;
   pluralName: string;
+  bgColor?: string;
+  fgColor?: string;
 }
 
 interface Props {
@@ -67,17 +69,8 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
       if (bookRes.ok) setLorebook(await bookRes.json());
       if (typesRes.ok) {
         const d = await typesRes.json();
-        const types: EntryType[] = d.entryTypes || [];
-        setEntryTypes(types);
-        // Fetch aliases for all entry types in parallel
-        const aliasResults = await Promise.all(
-          types.map(async (t) => {
-            const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${t.id}/aliases`);
-            const aliases: EntryTypeAlias[] = r.ok ? (await r.json()).aliases || [] : [];
-            return [t.id, aliases] as [string, EntryTypeAlias[]];
-          })
-        );
-        setAliasesByTypeId(Object.fromEntries(aliasResults));
+        setEntryTypes(d.entryTypes || []);
+        setAliasesByTypeId(d.aliasesByTypeId || {});
       }
     } catch {}
     setLoading(false);
@@ -243,6 +236,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 lorebookId={lorebookId}
                 entryTypeId={entryTypeId}
                 entryTypes={entryTypes}
+                aliasesByTypeId={aliasesByTypeId}
                 canEdit={canEdit}
                 aliasId={aliasId}
                 aliasName={currentAlias?.pluralName}
@@ -256,6 +250,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 entryTypeId={entryTypeId}
                 recordId={recordId}
                 entryTypes={entryTypes}
+                aliases={aliasesByTypeId[entryTypeId] || []}
                 canEdit={canEdit}
                 onBack={() => handleBackToList(entryTypeId)}
                 onNavigateRecord={(typeId, rId) => handleSelectRecord(typeId, rId)}

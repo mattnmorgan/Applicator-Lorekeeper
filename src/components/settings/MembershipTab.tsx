@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button, ButtonIcon, Icon, ConfirmModal, SearchableCombobox } from "@applicator/sdk/components";
+import type { AppView } from "../../apps/Lorekeeper";
 
 interface Member {
   id?: string;
@@ -23,9 +24,10 @@ interface Props {
   lorebookId: string;
   isOwner: boolean;
   addToast: (message: string, type?: "success" | "error") => void;
+  navigate: (v: AppView) => void;
 }
 
-export default function MembershipTab({ lorebookId, isOwner, addToast }: Props) {
+export default function MembershipTab({ lorebookId, isOwner, addToast, navigate }: Props) {
   const [owner, setOwner] = useState<Member | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -97,8 +99,11 @@ export default function MembershipTab({ lorebookId, isOwner, addToast }: Props) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ promoteToOwner: true }),
     });
-    if (res.ok) { addToast("Ownership transferred"); setPromoteTarget(null); fetchMembers(); }
-    else addToast("Failed to transfer ownership", "error");
+    if (res.ok) {
+      addToast("Ownership transferred");
+      setPromoteTarget(null);
+      navigate({ type: "lorebook", lorebookId });
+    } else addToast("Failed to transfer ownership", "error");
   };
 
   const roleColor = (role: string) => ({ view: "#64748b", edit: "#3b82f6", manager: "#8b5cf6", owner: "#f59e0b" }[role] || "#64748b");

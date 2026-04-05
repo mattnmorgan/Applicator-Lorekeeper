@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Icon } from "@applicator/sdk/components";
 
 interface EntryType {
@@ -17,6 +18,8 @@ interface EntryTypeAlias {
   entryTypeId: string;
   singularName: string;
   pluralName: string;
+  bgColor?: string;
+  fgColor?: string;
 }
 
 interface Props {
@@ -47,9 +50,9 @@ function buildTree(types: EntryType[]): TreeNode[] {
     }
   });
 
-  const bySort = (a: TreeNode, b: TreeNode) => (a.type.sortOrder ?? 0) - (b.type.sortOrder ?? 0);
+  const byName = (a: TreeNode, b: TreeNode) => a.type.pluralName.localeCompare(b.type.pluralName);
   const sortTree = (nodes: TreeNode[]) => {
-    nodes.sort(bySort);
+    nodes.sort(byName);
     nodes.forEach((n) => sortTree(n.children));
   };
   sortTree(roots);
@@ -149,7 +152,18 @@ function NavNode({
             onClick={() => onSelectAlias(type.id, alias.id)}
           >
             <span style={{ width: 12, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: isAliasSelected ? "#e2e8f0" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span
+              style={{
+                fontSize: 11,
+                padding: "1px 6px",
+                borderRadius: 4,
+                background: alias.bgColor || "#1e293b",
+                color: alias.fgColor || "#94a3b8",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {alias.pluralName}
             </span>
           </div>
@@ -202,7 +216,7 @@ export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, s
   }
 
   return (
-    <div style={{ padding: "8px 0" }}>
+    <div style={{ padding: "8px 0", height: "100%", overflowY: "auto", boxSizing: "border-box" }}>
       {tree.map((node) => (
         <NavNode
           key={node.type.id}
@@ -221,6 +235,3 @@ export default function EntryTypeNav({ lorebookId, entryTypes, selectedTypeId, s
     </div>
   );
 }
-
-// Need useState import
-import { useState } from "react";

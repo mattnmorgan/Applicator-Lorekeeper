@@ -26,14 +26,25 @@ export async function GET(req: NextRequest, context: ApiContext) {
       sharedBooks = sharedResult.records;
     }
 
-    // Resolve owner display names
+    // Resolve owner display names and profile pictures
     const allBooks = [...ownedResult.records, ...sharedBooks];
     const ownerIds = [...new Set(allBooks.map((r: any) => r.data.ownerId))];
-    const ownerMap: Record<string, string> = {};
+    const ownerMap: Record<string, { name: string; picture?: string }> = {};
+    const userRecords = context.recordManager("system", "users");
     for (const ownerId of ownerIds) {
       try {
         const u = await context.user(ownerId);
-        ownerMap[ownerId] = u.displayName || u.username || ownerId;
+        let picture: string | undefined;
+        try {
+          const userRecord = await userRecords.readRecord(ownerId);
+          if (userRecord?.data?.icon) {
+            picture = `/api/system/assets/icons/users/${ownerId}`;
+          }
+        } catch {}
+        ownerMap[ownerId] = {
+          name: u.display_name || u.username || ownerId,
+          picture,
+        };
       } catch {}
     }
 
@@ -43,7 +54,8 @@ export async function GET(req: NextRequest, context: ApiContext) {
       blurb: r.data.blurb,
       hasIcon: r.data.hasIcon,
       ownerId: r.data.ownerId,
-      ownerName: ownerMap[r.data.ownerId] || r.data.ownerId,
+      ownerName: ownerMap[r.data.ownerId]?.name || r.data.ownerId,
+      ownerPicture: ownerMap[r.data.ownerId]?.picture,
       role,
     });
 
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest, context: ApiContext) {
       owned: ownedResult.records.map((r: any) => mapBook(r, "owner")),
       shared: sharedBooks.map((book: any) => {
         const membership = memberResult.records.find(
-          (m: any) => m.data.lorebookId === book.id
+          (m: any) => m.data.lorebookId === book.id,
         );
         return mapBook(book, membership?.data.role || "view");
       }),
@@ -64,7 +76,9 @@ export async function GET(req: NextRequest, context: ApiContext) {
 
 export async function POST(req: NextRequest, context: ApiContext) {
   try {
-    const canCreate = await context.isUserAuthorizedFor("lorekeeper:create-lorebook");
+    const canCreate = await context.isUserAuthorizedFor(
+      "lorekeeper:create-lorebook",
+    );
     if (!canCreate) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -85,7 +99,10 @@ export async function POST(req: NextRequest, context: ApiContext) {
       ownerId: user.id,
     });
 
-    return NextResponse.json({ id: record.id, ...record.data }, { status: 201 });
+    return NextResponse.json(
+      { id: record.id, ...record.data },
+      { status: 201 },
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

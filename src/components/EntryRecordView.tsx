@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  ButtonIcon, Icon, Button, Modal, ConfirmModal, Spinner, Badge,
+  ButtonIcon, Icon, Button, Modal, ConfirmModal, Spinner,
   RichTextEditor, RichTextViewer, FilePreview, isPreviewSupported,
 } from "@applicator/sdk/components";
 
@@ -21,7 +21,17 @@ interface EntryRecord {
   blurb: string;
   hasIcon: boolean;
   entryTypeId: string;
+  aliasId?: string;
   fieldData: Record<string, any>;
+}
+
+interface EntryTypeAlias {
+  id: string;
+  entryTypeId: string;
+  singularName: string;
+  pluralName: string;
+  bgColor?: string;
+  fgColor?: string;
 }
 
 interface EntrySection {
@@ -73,6 +83,7 @@ interface Props {
   entryTypeId: string;
   recordId: string;
   entryTypes: EntryType[];
+  aliases?: EntryTypeAlias[];
   canEdit: boolean;
   onBack: () => void;
   onNavigateRecord: (typeId: string, recordId: string) => void;
@@ -84,6 +95,7 @@ export default function EntryRecordView({
   entryTypeId,
   recordId,
   entryTypes,
+  aliases = [],
   canEdit,
   onBack,
   onNavigateRecord,
@@ -106,7 +118,7 @@ export default function EntryRecordView({
   const [lookupSearch, setLookupSearch] = useState("");
   const [lookupCandidates, setLookupCandidates] = useState<any[]>([]);
   const [relatedRecords, setRelatedRecords] = useState<Record<string, any[]>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [iconVersion, setIconVersion] = useState(0);
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
 
@@ -125,7 +137,7 @@ export default function EntryRecordView({
       if (recRes.ok) {
         const d = await recRes.json();
         setRecord(d);
-        setEditValues({ name: d.name, blurb: d.blurb, fieldData: { ...(d.fieldData || {}) } });
+        setEditValues({ name: d.name, blurb: d.blurb, aliasId: d.aliasId || "", fieldData: { ...(d.fieldData || {}) } });
       }
       if (attRes.ok) setAttachments((await attRes.json()).attachments || []);
       if (lookRes.ok) setLookups((await lookRes.json()).lookups || []);
@@ -228,6 +240,7 @@ export default function EntryRecordView({
           name: editValues.name,
           blurb: editValues.blurb,
           fieldData: editValues.fieldData,
+          aliasId: editValues.aliasId ?? "",
         }),
       });
       if (res.ok) {
@@ -544,7 +557,7 @@ export default function EntryRecordView({
               <ButtonIcon name="check" label="Save" onClick={handleSave} disabled={saving} />
               <ButtonIcon name="close" label="Cancel" onClick={() => {
                 setEditing(false);
-                setEditValues({ name: record.name, blurb: record.blurb, fieldData: { ...(record.fieldData || {}) } });
+                setEditValues({ name: record.name, blurb: record.blurb, aliasId: record.aliasId || "", fieldData: { ...(record.fieldData || {}) } });
               }} />
             </>
           )}
@@ -563,11 +576,36 @@ export default function EntryRecordView({
             width: 64, height: 64, borderRadius: 10, overflow: "hidden", flexShrink: 0,
             background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center",
             cursor: canEdit ? "pointer" : "default",
+            position: "relative",
           }}
-            onClick={() => canEdit && fileInputRef.current?.click()}
+            onClick={() => {
+              if (!canEdit) return;
+              const inp = document.createElement("input");
+              inp.type = "file";
+              inp.accept = "image/*";
+              inp.onchange = async () => {
+                const file = inp.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  const res = await fetch(`${baseUrl}/icon`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ iconData: dataUrl }),
+                  });
+                  if (res.ok) {
+                    setRecord((r) => r ? { ...r, hasIcon: true } : r);
+                    setIconVersion((v) => v + 1);
+                  }
+                };
+                reader.readAsDataURL(file);
+              };
+              inp.click();
+            }}
           >
             {record.hasIcon ? (
-              <img src={`${baseUrl}/icon`} style={{ width: 64, height: 64, objectFit: "cover" }} alt="" />
+              <img src={`${baseUrl}/icon${iconVersion > 0 ? `?v=${iconVersion}` : ""}`} style={{ width: 64, height: 64, objectFit: "cover" }} alt="" />
             ) : (
               <span style={{ color: "#64748b" }}><Icon name={(entryType?.icon as any) || "file"} size={28} /></span>
             )}
@@ -585,13 +623,34 @@ export default function EntryRecordView({
                   value={editValues.blurb || ""}
                   onChange={(e) => setEditValues((p) => ({ ...p, blurb: e.target.value }))}
                   placeholder="Summary blurb…"
-                  style={{ fontSize: 13, background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "4px 10px", color: "#94a3b8", outline: "none", width: "100%", boxSizing: "border-box" }}
+                  style={{ fontSize: 13, background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "4px 10px", color: "#94a3b8", outline: "none", width: "100%", boxSizing: "border-box", marginBottom: 8 }}
                 />
+                {aliases.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Subtype</div>
+                    <select
+                      value={editValues.aliasId || ""}
+                      onChange={(e) => setEditValues((p) => ({ ...p, aliasId: e.target.value }))}
+                      style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "4px 8px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                    >
+                      <option value="">None</option>
+                      {aliases.map((a) => <option key={a.id} value={a.id}>{a.singularName}</option>)}
+                    </select>
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>{record.name}</div>
                 {record.blurb && <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{record.blurb}</div>}
+                {record.aliasId && (() => {
+                  const alias = aliases.find((a) => a.id === record.aliasId);
+                  return alias ? (
+                    <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, padding: "2px 8px", borderRadius: 4, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8" }}>
+                      {alias.singularName}
+                    </span>
+                  ) : null;
+                })()}
               </>
             )}
           </div>

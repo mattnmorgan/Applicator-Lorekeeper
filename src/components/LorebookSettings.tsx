@@ -143,7 +143,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
               <MetadataTab lorebookId={lorebookId} canEdit={lorebook?.accessLevel === "owner" || lorebook?.accessLevel === "manager" || lorebook?.accessLevel === "edit"} addToast={addToast} />
             )}
             {tab === "membership" && canManage && (
-              <MembershipTab lorebookId={lorebookId} isOwner={isOwner} addToast={addToast} />
+              <MembershipTab lorebookId={lorebookId} isOwner={isOwner} addToast={addToast} navigate={navigate} />
             )}
             {tab === "delete" && isOwner && (
               <DeleteTab lorebookId={lorebookId} lorebookName={lorebook?.name || ""} onDeleted={() => navigate({ type: "lorebooks" })} addToast={addToast} />
