@@ -9,6 +9,7 @@ export interface EntryType {
   bgColor: string;
   fgColor: string;
   sortOrder: number;
+  formLayout?: FormLayout;
 }
 
 export interface EntrySection {
@@ -18,6 +19,7 @@ export interface EntrySection {
   name: string;
   sectionType: "fields" | "related_list";
   sortOrder: number;
+  config?: { aliasIds?: string[] };
 }
 
 export type FieldType = "text" | "rich_text" | "picklist" | "toggle" | "number" | "lookup";
@@ -51,6 +53,7 @@ export interface EntryField {
   name: string;
   fieldType: FieldType;
   config: FieldConfig;
+  aliasIds?: string[];
   sortOrder: number;
 }
 
@@ -62,4 +65,31 @@ export interface RelatedListItem {
   fieldId: string;
   entryTypeName?: string;
   fieldName?: string;
+}
+
+// Form layout types — shared with FormEditor/FormViewer SDK components
+
+export interface FormColumn {
+  id: string;
+  /** Width as a percentage of the row (all columns in a row must sum to 100) */
+  width: number;
+  /** ID of the EntryField assigned to this slot, or null for empty */
+  fieldId: string | null;
+}
+
+export interface FormRow {
+  id: string;
+  columns: FormColumn[];
+}
+
+export interface FormLayoutSection {
+  id: string;
+  name: string;
+  /** Empty array = shown for all aliases; non-empty = only shown when activeAliasId is in list */
+  aliasIds: string[];
+  rows: FormRow[];
+}
+
+export interface FormLayout {
+  sections: FormLayoutSection[];
 }

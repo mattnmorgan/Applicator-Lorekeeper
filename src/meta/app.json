@@ -39,7 +39,8 @@
         { "name": "parentTypeId", "description": "Parent entry type ID for tree hierarchy", "type": "relationship", "relatedTo": "entry_type" },
         { "name": "bgColor", "description": "Badge background hex color", "type": "string" },
         { "name": "fgColor", "description": "Badge foreground/text hex color", "type": "string" },
-        { "name": "sortOrder", "description": "Display sort order", "type": "number" }
+        { "name": "sortOrder", "description": "Display sort order", "type": "number" },
+        { "name": "formLayout", "description": "JSON form layout defining sections, rows, and column field assignments", "type": "json" }
       ]
     },
     {
@@ -70,7 +71,7 @@
       "fields": [
         { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
         { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "sectionId", "description": "Parent section", "type": "relationship", "relatedTo": "entry_section", "required": true },
+        { "name": "sectionId", "description": "Parent section (optional for type-level fields)", "type": "relationship", "relatedTo": "entry_section" },
         { "name": "name", "description": "Field display name", "type": "string", "required": true },
         { "name": "fieldType", "description": "Field data type", "type": "picklist", "required": true, "options": {
           "text": "Text",
@@ -81,6 +82,7 @@
           "lookup": "Lookup"
         }},
         { "name": "config", "description": "JSON configuration specific to the field type", "type": "json" },
+        { "name": "aliasIds", "description": "Alias IDs this field is restricted to (empty array = visible for all)", "type": "json" },
         { "name": "sortOrder", "description": "Display sort order within the section", "type": "number" }
       ]
     },
@@ -167,6 +169,12 @@
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/reorder", "method": "POST", "description": "Reorder sections" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]", "method": "PATCH", "description": "Update a section" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]", "method": "DELETE", "description": "Delete a section and its fields" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields", "method": "GET", "description": "List all fields for an entry type (type-level, across all sections)" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields", "method": "POST", "description": "Create a type-level field (no section required)" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]", "method": "PATCH", "description": "Update a type-level field's name, config, or aliasIds" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]", "method": "DELETE", "description": "Delete a type-level field" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout", "method": "GET", "description": "Get the form layout for an entry type" },
+    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout", "method": "PATCH", "description": "Update the form layout for an entry type" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "GET", "description": "List fields in a section" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "POST", "description": "Create a field" },
     { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/reorder", "method": "POST", "description": "Reorder fields" },
