@@ -54,6 +54,8 @@ export interface EntryField {
   fieldType: FieldType;
   config: FieldConfig;
   aliasIds?: string[];
+  required?: boolean;
+  tooltip?: string;
   sortOrder: number;
 }
 

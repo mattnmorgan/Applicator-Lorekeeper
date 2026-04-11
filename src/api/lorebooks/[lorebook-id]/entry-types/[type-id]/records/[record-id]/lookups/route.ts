@@ -52,10 +52,14 @@ export async function GET(
 
     const entryRecords = context.recordManager("lorekeeper", "entry_record");
     const nameMap: Record<string, string> = {};
+    const typeMap: Record<string, string> = {};
+    const iconMap: Record<string, boolean> = {};
     for (const id of recordIds) {
       try {
         const r = await entryRecords.readRecord(id);
         nameMap[id] = r?.data.name || id;
+        typeMap[id] = r?.data.entryTypeId || "";
+        iconMap[id] = !!r?.data.hasIcon;
       } catch {}
     }
 
@@ -64,6 +68,10 @@ export async function GET(
       ...r.data,
       record1Name: nameMap[r.data.record1] || r.data.record1,
       record2Name: nameMap[r.data.record2] || r.data.record2,
+      record1TypeId: typeMap[r.data.record1] || "",
+      record2TypeId: typeMap[r.data.record2] || "",
+      record1HasIcon: iconMap[r.data.record1] || false,
+      record2HasIcon: iconMap[r.data.record2] || false,
     }));
 
     return NextResponse.json({ lookups: items });

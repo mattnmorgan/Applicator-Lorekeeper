@@ -60,6 +60,7 @@ interface EntryField {
   config: any;
   aliasIds?: string[];
   required?: boolean;
+  tooltip?: string;
   sortOrder: number;
 }
 
@@ -121,12 +122,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [typeValues, setTypeValues] = useState<Record<string, any>>({
     singularName: "",
     pluralName: "",
-    icon: "file",
     blurb: "",
     bgColor: "#334155",
     fgColor: "#f1f5f9",
     parentTypeId: "",
   });
+  const [createTypeIcon, setCreateTypeIcon] = useState<string | null>(null);
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<EntryType | null>(
     null,
   );
@@ -168,6 +169,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     Record<string, number>
   >({});
 
+  const [reparenting, setReparenting] = useState(false);
+
   // Debounce ref for badge color updates
   const colorSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -189,6 +192,24 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         },
       );
     }, 600);
+  };
+
+  const handleReparentAll = async () => {
+    if (!activeType || aliases.length === 0) return;
+    setReparenting(true);
+    try {
+      await Promise.all(
+        aliases.map((alias) =>
+          handleUpdateAlias(alias, {
+            bgColor: activeType.bgColor,
+            fgColor: activeType.fgColor,
+          }),
+        ),
+      );
+      addToast("All aliases updated to match entry type colors");
+    } finally {
+      setReparenting(false);
+    }
   };
 
   // Form layout save debounce
@@ -279,13 +300,25 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       },
     );
     if (res.ok) {
-      const et = await res.json();
+      let et = await res.json();
+      // Upload icon if one was selected
+      if (createTypeIcon) {
+        const iconRes = await fetch(
+          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${et.id}/icon`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ iconData: createTypeIcon }),
+          },
+        );
+        if (iconRes.ok) et = { ...et, hasIcon: true };
+      }
       addToast("Entry type created");
       setShowCreateType(false);
+      setCreateTypeIcon(null);
       setTypeValues({
         singularName: "",
         pluralName: "",
-        icon: "file",
         blurb: "",
         bgColor: "#334155",
         fgColor: "#f1f5f9",
@@ -412,6 +445,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         decimals: values.decimals ?? 0,
         min: values.min,
         max: values.max,
+        unit: values.unit || "",
+        unitPosition: values.unitPosition || "suffix",
       };
     if (values.fieldType === "lookup")
       return {
@@ -439,6 +474,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           config: buildFieldConfig(fieldValues),
           aliasIds: [],
           required: !!fieldValues.required,
+          tooltip: fieldValues.tooltip || "",
         }),
       },
     );
@@ -480,6 +516,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       multiselect: cfg.multiselect,
       allowCustom: cfg.allowCustom,
       required: !!field.required,
+      tooltip: field.tooltip || "",
+      // number
+      decimals: cfg.decimals ?? 0,
+      min: cfg.min ?? "",
+      max: cfg.max ?? "",
+      unit: cfg.unit || "",
+      unitPosition: cfg.unitPosition || "suffix",
+      // lookup
+      aToB: cfg.aToB || "",
+      bToA: cfg.bToA || "",
     });
     if (field.fieldType === "picklist" && activeTypeId) {
       try {
@@ -502,12 +548,29 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
   const handleSaveField = async () => {
     if (!editingField || !activeTypeId) return;
-    const updates: any = { required: !!editFieldValues.required };
+    const updates: any = {
+      required: !!editFieldValues.required,
+      tooltip: editFieldValues.tooltip || "",
+    };
     if (editingField.fieldType === "picklist")
       updates.config = {
         options: editFieldValues.options || [],
         multiselect: !!editFieldValues.multiselect,
         allowCustom: !!editFieldValues.allowCustom,
+      };
+    if (editingField.fieldType === "number")
+      updates.config = {
+        decimals: editFieldValues.decimals ?? 0,
+        min: editFieldValues.min || undefined,
+        max: editFieldValues.max || undefined,
+        unit: editFieldValues.unit || "",
+        unitPosition: editFieldValues.unitPosition || "suffix",
+      };
+    if (editingField.fieldType === "lookup")
+      updates.config = {
+        ...(editingField.config || {}),
+        aToB: editFieldValues.aToB || "",
+        bToA: editFieldValues.bToA || "",
       };
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields/${editingField.id}`,
@@ -1192,17 +1255,28 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               >
                                 Preview
                               </div>
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  padding: "3px 10px",
-                                  borderRadius: 4,
-                                  background: activeType.bgColor || "#334155",
-                                  color: activeType.fgColor || "#f1f5f9",
-                                }}
-                              >
-                                {activeType.singularName}
-                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    padding: "3px 10px",
+                                    borderRadius: 4,
+                                    background: activeType.bgColor || "#334155",
+                                    color: activeType.fgColor || "#f1f5f9",
+                                  }}
+                                >
+                                  {activeType.singularName}
+                                </span>
+                                {canEdit && aliases.length > 0 && (
+                                  <ButtonIcon
+                                    name="refresh"
+                                    label="Reparent all aliases to match these colors"
+                                    size="sm"
+                                    disabled={reparenting}
+                                    onClick={handleReparentAll}
+                                  />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </>
@@ -1970,10 +2044,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               value={typeValues.blurb}
               onChange={(id, v) => setTypeValues((p) => ({ ...p, [id]: v }))}
             />
-            <DynamicInput
-              input={{ id: "icon", label: "Icon", type: "icon" }}
-              value={typeValues.icon}
-              onChange={(id, v) => setTypeValues((p) => ({ ...p, [id]: v }))}
+            <ImageUpload
+              label="Icon"
+              value={createTypeIcon}
+              onChange={setCreateTypeIcon}
             />
             <div>
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
@@ -2247,6 +2321,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               value={fieldValues.name}
               onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
             />
+            <DynamicInput
+              input={{
+                id: "tooltip",
+                label: "Tooltip (optional)",
+                type: "text",
+                placeholder: "Help text shown to users when filling in this field",
+              }}
+              value={fieldValues.tooltip ?? ""}
+              onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+            />
             <div
               style={{
                 display: "grid",
@@ -2351,6 +2435,31 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       setFieldValues((p) => ({ ...p, [id]: v }))
                     }
                   />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
+                  <DynamicInput
+                    input={{ id: "unit", label: "Unit (optional)", type: "text", placeholder: 'e.g. "cards" or "$"' }}
+                    value={fieldValues.unit ?? ""}
+                    onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Position</div>
+                    <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid #334155" }}>
+                      {(["prefix", "suffix"] as const).map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => setFieldValues((p) => ({ ...p, unitPosition: pos }))}
+                          style={{
+                            padding: "6px 12px", border: "none", cursor: "pointer", fontSize: 12,
+                            background: (fieldValues.unitPosition || "suffix") === pos ? "#1e3a5f" : "transparent",
+                            color: (fieldValues.unitPosition || "suffix") === pos ? "#e2e8f0" : "#64748b",
+                            fontWeight: (fieldValues.unitPosition || "suffix") === pos ? 600 : 400,
+                          }}
+                        >{pos}</button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -2470,6 +2579,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 setEditFieldValues((p) => ({ ...p, [id]: v }))
               }
             />
+            <DynamicInput
+              input={{
+                id: "tooltip",
+                label: "Tooltip (optional)",
+                type: "text",
+                placeholder: "Help text shown to users when filling in this field",
+              }}
+              value={editFieldValues.tooltip ?? ""}
+              onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+            />
             {editingField.fieldType === "picklist" && (
               <>
                 <DynamicInput
@@ -2501,6 +2620,85 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     setEditFieldValues((p) => ({ ...p, options: opts }))
                   }
                 />
+              </>
+            )}
+            {editingField.fieldType === "number" && (
+              <>
+                <DynamicInput
+                  input={{ id: "decimals", label: "Decimal Places", type: "number", min: "0", max: "10" }}
+                  value={editFieldValues.decimals ?? 0}
+                  onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <DynamicInput
+                    input={{ id: "min", label: "Min (optional)", type: "number" }}
+                    value={editFieldValues.min ?? ""}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                  <DynamicInput
+                    input={{ id: "max", label: "Max (optional)", type: "number" }}
+                    value={editFieldValues.max ?? ""}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
+                  <DynamicInput
+                    input={{ id: "unit", label: "Unit (optional)", type: "text", placeholder: 'e.g. "cards" or "$"' }}
+                    value={editFieldValues.unit ?? ""}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Position</div>
+                    <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid #334155" }}>
+                      {(["prefix", "suffix"] as const).map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => setEditFieldValues((p) => ({ ...p, unitPosition: pos }))}
+                          style={{
+                            padding: "6px 12px", border: "none", cursor: "pointer", fontSize: 12,
+                            background: (editFieldValues.unitPosition || "suffix") === pos ? "#1e3a5f" : "transparent",
+                            color: (editFieldValues.unitPosition || "suffix") === pos ? "#e2e8f0" : "#64748b",
+                            fontWeight: (editFieldValues.unitPosition || "suffix") === pos ? 600 : 400,
+                          }}
+                        >{pos}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {editingField.fieldType === "lookup" && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <DynamicInput
+                    input={{ id: "aToB", label: "This record's label", type: "text", placeholder: "e.g. father" }}
+                    value={editFieldValues.aToB ?? ""}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                  <DynamicInput
+                    input={{ id: "bToA", label: "Linked record's label", type: "text", placeholder: "e.g. son" }}
+                    value={editFieldValues.bToA ?? ""}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Target Entry Types</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {((editingField.config as any)?.targetEntryTypeIds || []).length === 0
+                      ? <span style={{ fontSize: 12, color: "#475569" }}>Any</span>
+                      : ((editingField.config as any)?.targetEntryTypeIds || []).map((tid: string) => {
+                          const t = entryTypes.find((e) => e.id === tid);
+                          return t ? (
+                            <span key={tid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: t.bgColor || "#334155", color: t.fgColor || "#f1f5f9" }}>{t.pluralName}</span>
+                          ) : null;
+                        })}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Allow multiple values:</span>
+                  <span style={{ fontSize: 13, color: "#f1f5f9" }}>{(editingField.config as any)?.multiselect ? "Yes" : "No"}</span>
+                </div>
               </>
             )}
           </div>

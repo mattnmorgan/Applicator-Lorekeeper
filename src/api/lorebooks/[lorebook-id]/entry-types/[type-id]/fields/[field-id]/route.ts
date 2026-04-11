@@ -23,6 +23,7 @@ export async function PATCH(
     if (body.config !== undefined) updates.config = body.config;
     if (body.aliasIds !== undefined) updates.aliasIds = body.aliasIds;
     if (body.required !== undefined) updates.required = !!body.required;
+    if (body.tooltip !== undefined) updates.tooltip = body.tooltip;
 
     const table = await fields.getTable();
     const updated = await fields.updateRecord(table, params.fieldId, updates);

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  ButtonIcon, Icon, Button, Modal, ConfirmModal, Spinner,
+  ButtonIcon, Icon, ConfirmModal, Spinner,
   RichTextEditor, RichTextViewer, FilePreview, isPreviewSupported,
   FormViewer, DynamicInput,
 } from "@applicator/sdk/components";
@@ -47,6 +47,7 @@ interface EntryField {
   config: any;
   aliasIds?: string[];
   required?: boolean;
+  tooltip?: string;
   sortOrder: number;
 }
 
@@ -76,6 +77,10 @@ interface RecordLookup {
   bToA: string;
   record1Name: string;
   record2Name: string;
+  record1TypeId: string;
+  record2TypeId: string;
+  record1HasIcon: boolean;
+  record2HasIcon: boolean;
 }
 
 interface Attachment {
@@ -127,7 +132,6 @@ export default function EntryRecordView({
   const [showDelete, setShowDelete] = useState(false);
   const [previewFile, setPreviewFile] = useState<Attachment | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [lookupModalField, setLookupModalField] = useState<EntryField | null>(null);
   const [iconVersion, setIconVersion] = useState(0);
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
@@ -291,24 +295,25 @@ export default function EntryRecordView({
       return (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {fieldLookups.map((lk) => {
-            const otherId = lk.record1 === recordId ? lk.record2 : lk.record1;
-            const otherName = lk.record1 === recordId ? lk.record2Name : lk.record1Name;
-            const label = lk.record1 === recordId ? lk.aToB : lk.bToA;
+            const isRecord1 = lk.record1 === recordId;
+            const otherId = isRecord1 ? lk.record2 : lk.record1;
+            const otherName = isRecord1 ? lk.record2Name : lk.record1Name;
+            const otherTypeId = isRecord1 ? lk.record2TypeId : lk.record1TypeId;
+            const otherHasIcon = isRecord1 ? lk.record2HasIcon : lk.record1HasIcon;
+            const label = isRecord1 ? lk.aToB : lk.bToA;
+            const et = entryTypes.find((t) => t.id === otherTypeId);
             return (
-              <div key={lk.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e293b", borderRadius: 6, padding: "3px 8px", fontSize: 12, cursor: "pointer" }}
-                onClick={() => {
-                  const targetType = entryTypes.find((t) => {
-                    // We look up the type from the other record — approximation via lookups
-                    return true;
-                  });
-                }}>
-                <span style={{ color: "#94a3b8" }}>{label && `${label}: `}</span>
+              <div key={lk.id}
+                style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e293b", borderRadius: 6, padding: "3px 8px", fontSize: 12, cursor: otherTypeId ? "pointer" : "default" }}
+                onClick={() => { if (otherTypeId) onNavigateRecord(otherTypeId, otherId); }}
+              >
+                {otherHasIcon && otherTypeId ? (
+                  <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${otherTypeId}/records/${otherId}/icon`} style={{ width: 16, height: 16, borderRadius: 2, objectFit: "cover", flexShrink: 0 }} alt="" />
+                ) : et ? (
+                  <span style={{ width: 16, height: 16, borderRadius: 2, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
+                ) : null}
+                {label && <span style={{ color: "#64748b" }}>{label}:</span>}
                 <span style={{ color: "#e2e8f0" }}>{otherName}</span>
-                {canEdit && editing && (
-                  <ButtonIcon name="close" label="Remove" size="sm" onClick={() => {
-                    fetch(`${baseUrl}/lookups/${lk.id}`, { method: "DELETE" }).then(() => setLookups((l) => l.filter((x) => x.id !== lk.id)));
-                  }} />
-                )}
               </div>
             );
           })}
@@ -335,6 +340,12 @@ export default function EntryRecordView({
       }
       const opt = field.config?.options?.find((o: any) => o.value === value);
       return <span>{opt?.label || value || <span style={{ color: "#64748b" }}>—</span>}</span>;
+    }
+    if (field.fieldType === "number" && field.config?.unit) {
+      if (value === null || value === undefined || value === "") return <span style={{ color: "#64748b" }}>—</span>;
+      const unit = field.config.unit as string;
+      const pos = (field.config.unitPosition as string) || "suffix";
+      return <span>{pos === "prefix" ? `${unit} ${value}` : `${value} ${unit}`}</span>;
     }
     if (!value && value !== 0 && value !== false) return <span style={{ color: "#64748b" }}>—</span>;
     return <span>{String(value)}</span>;
@@ -404,24 +415,17 @@ export default function EntryRecordView({
       );
     }
     if (field.fieldType === "lookup") {
-      const fieldLookups = lookups.filter((lk) => lk.customFieldId === field.id);
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {fieldLookups.map((lk) => {
-            const otherName = lk.record1 === recordId ? lk.record2Name : lk.record1Name;
-            const label = lk.record1 === recordId ? lk.aToB : lk.bToA;
-            return (
-              <div key={lk.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, color: "#94a3b8" }}>{label && `${label}: `}</span>
-                <span style={{ fontSize: 13, color: "#e2e8f0" }}>{otherName}</span>
-                <ButtonIcon name="close" label="Remove" size="sm" onClick={() => {
-                  fetch(`${baseUrl}/lookups/${lk.id}`, { method: "DELETE" }).then(() => setLookups((l) => l.filter((x) => x.id !== lk.id)));
-                }} />
-              </div>
-            );
-          })}
-          <Button variant="ghost" onClick={() => { setLookupModalField(field); }}>+ Add lookup</Button>
-        </div>
+        <LookupFieldEditor
+          field={field}
+          lorebookId={lorebookId}
+          recordId={recordId}
+          entryTypes={entryTypes}
+          baseUrl={baseUrl}
+          lookups={lookups}
+          onAdded={(lk) => setLookups((l) => [...l, lk])}
+          onRemoved={(id) => setLookups((l) => l.filter((x) => x.id !== id))}
+        />
       );
     }
     return null;
@@ -736,18 +740,6 @@ export default function EntryRecordView({
         />
       )}
 
-      {/* Lookup modal */}
-      {lookupModalField && (
-        <LookupModal
-          field={lookupModalField}
-          lorebookId={lorebookId}
-          recordId={recordId}
-          entryTypes={entryTypes}
-          baseUrl={baseUrl}
-          onClose={() => setLookupModalField(null)}
-          onAdded={(lk) => { setLookups((l) => [...l, lk]); setLookupModalField(null); }}
-        />
-      )}
 
       {showDelete && (
         <ConfirmModal
@@ -762,91 +754,122 @@ export default function EntryRecordView({
   );
 }
 
-// ─── LookupModal ──────────────────────────────────────────────────────────────
+// ─── LookupFieldEditor ────────────────────────────────────────────────────────
 
-function LookupModal({ field, lorebookId, recordId, entryTypes, baseUrl, onClose, onAdded }: {
+function LookupFieldEditor({ field, lorebookId, recordId, entryTypes, baseUrl, lookups, onAdded, onRemoved }: {
   field: EntryField;
   lorebookId: string;
   recordId: string;
   entryTypes: EntryType[];
   baseUrl: string;
-  onClose: () => void;
-  onAdded: (lk: any) => void;
+  lookups: RecordLookup[];
+  onAdded: (lk: RecordLookup) => void;
+  onRemoved: (id: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
-  const [aToB, setAToB] = useState(field.config?.aToB || "");
-  const [bToA, setBToA] = useState(field.config?.bToA || "");
+  const [open, setOpen] = useState(false);
   const targetIds: string[] = field.config?.targetEntryTypeIds || [];
+  const fieldLookups = lookups.filter((lk) => lk.customFieldId === field.id);
+  const existingIds = new Set(fieldLookups.map((lk) => lk.record1 === recordId ? lk.record2 : lk.record1));
+  const canAddMore = field.config?.multiselect !== false || fieldLookups.length === 0;
 
   useEffect(() => {
-    const fetch_ = async () => {
+    if (!search.trim()) { setResults([]); return; }
+    const controller = new AbortController();
+    const t = setTimeout(async () => {
       const all: any[] = [];
       for (const typeId of targetIds) {
-        const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/records?search=${encodeURIComponent(search)}`);
-        if (res.ok) {
-          const data = await res.json();
-          const et = entryTypes.find((t) => t.id === typeId);
-          data.records.forEach((r: any) => all.push({ ...r, entryTypeId: typeId, entryTypeName: et?.singularName }));
-        }
+        try {
+          const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/records?search=${encodeURIComponent(search)}`, { signal: controller.signal });
+          if (res.ok) {
+            const data = await res.json();
+            const et = entryTypes.find((t) => t.id === typeId);
+            (data.records || []).forEach((r: any) => {
+              if (!existingIds.has(r.id) && r.id !== recordId)
+                all.push({ ...r, entryTypeId: typeId, entryType: et });
+            });
+          }
+        } catch {}
       }
-      setResults(all.sort((a, b) => a.name.localeCompare(b.name)));
-    };
-    const t = setTimeout(fetch_, 200);
-    return () => clearTimeout(t);
-  }, [search, lorebookId, targetIds.join(",")]);
+      setResults(all.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+    }, 200);
+    return () => { clearTimeout(t); controller.abort(); };
+  }, [search, lorebookId, fieldLookups.length]);
 
-  const handleAdd = async (targetRecord: any) => {
+  const handleAdd = async (target: any) => {
     const res = await fetch(`${baseUrl}/lookups`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customFieldId: field.id, record2: targetRecord.id, aToB, bToA }),
+      body: JSON.stringify({ customFieldId: field.id, record2: target.id, aToB: field.config?.aToB || "", bToA: field.config?.bToA || "" }),
     });
     if (res.ok) {
       const lk = await res.json();
-      onAdded({ ...lk, record1Name: "", record2Name: targetRecord.name });
+      onAdded({ ...lk, record1Name: "", record2Name: target.name, record1TypeId: "", record2TypeId: target.entryTypeId, record1HasIcon: false, record2HasIcon: !!target.hasIcon });
+      setSearch(""); setResults([]); setOpen(false);
     }
   };
 
+  const handleRemove = (lkId: string) => {
+    fetch(`${baseUrl}/lookups/${lkId}`, { method: "DELETE" }).then(() => onRemoved(lkId));
+  };
+
   return (
-    <Modal
-      header={<div style={{ padding: "12px 16px", fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>Add Lookup — {field.name}</div>}
-      closeable onClose={onClose} maxWidth={480}
-    >
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        {(field.config?.aToB !== undefined || field.config?.bToA !== undefined) && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Relationship (A→B)</div>
-              <input value={aToB} onChange={(e) => setAToB(e.target.value)} placeholder="e.g. father"
-                style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Relationship (B→A)</div>
-              <input value={bToA} onChange={(e) => setBToA(e.target.value)} placeholder="e.g. son"
-                style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-            </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {fieldLookups.map((lk) => {
+        const isR1 = lk.record1 === recordId;
+        const otherId = isR1 ? lk.record2 : lk.record1;
+        const otherName = isR1 ? lk.record2Name : lk.record1Name;
+        const otherTypeId = isR1 ? lk.record2TypeId : lk.record1TypeId;
+        const otherHasIcon = isR1 ? lk.record2HasIcon : lk.record1HasIcon;
+        const label = isR1 ? lk.aToB : lk.bToA;
+        const et = entryTypes.find((t) => t.id === otherTypeId);
+        return (
+          <div key={lk.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e293b", borderRadius: 6, padding: "4px 8px" }}>
+            {otherHasIcon && otherTypeId ? (
+              <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${otherTypeId}/records/${otherId}/icon`} style={{ width: 20, height: 20, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} alt="" />
+            ) : et ? (
+              <span style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
+            ) : null}
+            {label && <span style={{ fontSize: 11, color: "#64748b" }}>{label}:</span>}
+            <span style={{ fontSize: 13, color: "#e2e8f0", flex: 1 }}>{otherName}</span>
+            <ButtonIcon name="close" label="Remove" size="sm" onClick={() => handleRemove(lk.id)} />
           </div>
-        )}
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search entries…" autoFocus
-          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "7px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }} />
-        <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
-          {results.map((r) => {
-            const et = entryTypes.find((t) => t.id === r.entryTypeId);
-            return (
-              <div key={r.id}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "transparent" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#1e293b")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                onClick={() => handleAdd(r)}
-              >
-                <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
-                {et && <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: et.bgColor || "#334155", color: et.fgColor || "#f1f5f9" }}>{et.singularName}</span>}
-              </div>
-            );
-          })}
-          {results.length === 0 && <div style={{ color: "#64748b", fontSize: 13, padding: "8px 0" }}>No results</div>}
+        );
+      })}
+      {canAddMore && (
+        <div style={{ position: "relative" }}>
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder="Search entries to link…"
+            style={{ width: "100%", boxSizing: "border-box", background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 13, outline: "none" }}
+          />
+          {open && results.length > 0 && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#1e293b", border: "1px solid #334155", borderRadius: 6, maxHeight: 200, overflowY: "auto", marginTop: 2 }}>
+              {results.map((r) => {
+                const et = r.entryType as EntryType | undefined;
+                return (
+                  <div key={r.id} onMouseDown={() => handleAdd(r)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#0f172a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    {r.hasIcon ? (
+                      <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${r.entryTypeId}/records/${r.id}/icon`} style={{ width: 20, height: 20, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} alt="" />
+                    ) : et ? (
+                      <span style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
+                    ) : null}
+                    <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
+                    {et && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff" }}>{et.singularName}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
-    </Modal>
+      )}
+    </div>
   );
 }
