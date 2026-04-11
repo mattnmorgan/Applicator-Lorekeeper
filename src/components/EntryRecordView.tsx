@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   ButtonIcon, Icon, ConfirmModal, Spinner,
   RichTextEditor, RichTextViewer, FilePreview, isPreviewSupported,
-  FormViewer, DynamicInput,
+  FormViewer, DynamicInput, InfoTooltip,
 } from "@applicator/sdk/components";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
@@ -211,6 +211,9 @@ export default function EntryRecordView({
     // Validate required fields
     const missingRequired = fields.filter((f) => {
       if (!f.required) return false;
+      if (f.fieldType === "lookup") {
+        return lookups.filter((lk) => lk.customFieldId === f.id).length === 0;
+      }
       const val = editValues.fieldData?.[f.id];
       if (val === undefined || val === null || val === "") return true;
       if (Array.isArray(val) && val.length === 0) return true;
@@ -356,7 +359,7 @@ export default function EntryRecordView({
     if (field.fieldType === "text") {
       return (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "text", placeholder: "Enter value…", tooltip: field.tooltip }}
+          input={{ id: field.id, label: "", type: "text", placeholder: "Enter value…" }}
           value={value || ""}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
@@ -368,7 +371,7 @@ export default function EntryRecordView({
     if (field.fieldType === "toggle") {
       return (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "toggle", tooltip: field.tooltip }}
+          input={{ id: field.id, label: "", type: "toggle" }}
           value={!!value}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
@@ -379,13 +382,13 @@ export default function EntryRecordView({
       const unitPos = (cfg.unitPosition as string) || "suffix";
       const input = (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "number", min: cfg.min != null ? String(cfg.min) : undefined, max: cfg.max != null ? String(cfg.max) : undefined, step: cfg.decimals ? String(Math.pow(10, -cfg.decimals)) : "1", decimalPlaces: cfg.decimals ?? 0, tooltip: field.tooltip }}
+          input={{ id: field.id, label: "", type: "number", min: cfg.min != null ? String(cfg.min) : undefined, max: cfg.max != null ? String(cfg.max) : undefined, step: cfg.decimals ? String(Math.pow(10, -cfg.decimals)) : "1", decimalPlaces: cfg.decimals ?? 0 }}
           value={value ?? ""}
           onChange={(_, v) => setFieldValue(field.id, v === "" ? null : Number(v))}
         />
       );
       if (!unit) return input;
-      const unitLabel = <span style={{ fontSize: 13, color: "#94a3b8", whiteSpace: "nowrap" }}>{unit}</span>;
+      const unitLabel = <span style={{ fontSize: 13, color: "#94a3b8", whiteSpace: "nowrap", lineHeight: "32px" }}>{unit}</span>;
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {unitPos === "prefix" && unitLabel}
@@ -399,13 +402,7 @@ export default function EntryRecordView({
       if (cfg.multiselect) {
         return (
           <DynamicInput
-            input={{
-              id: field.id,
-              label: "",
-              type: "badge-multiselect",
-              options: opts,
-              tooltip: field.tooltip,
-            }}
+            input={{ id: field.id, label: "", type: "badge-multiselect", options: opts }}
             value={Array.isArray(value) ? value : (value ? [value] : [])}
             onChange={(_, v) => setFieldValue(field.id, v)}
           />
@@ -413,13 +410,7 @@ export default function EntryRecordView({
       }
       return (
         <DynamicInput
-          input={{
-            id: field.id,
-            label: "",
-            type: "select",
-            options: opts,
-            tooltip: field.tooltip,
-          }}
+          input={{ id: field.id, label: "", type: "select", options: opts }}
           value={value || ""}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
@@ -452,7 +443,7 @@ export default function EntryRecordView({
 
   // FormViewerField list for FormViewer
   const viewerFields: FormViewerField[] = fields.map((f) => ({
-    id: f.id, name: f.name, fieldType: f.fieldType, aliasIds: f.aliasIds, required: f.required,
+    id: f.id, name: f.name, fieldType: f.fieldType, aliasIds: f.aliasIds, required: f.required, tooltip: f.tooltip,
   }));
 
   // Returns inputDef stored on the layout column for this field, if any.
@@ -590,15 +581,14 @@ export default function EntryRecordView({
             onChange={setFieldValue}
             resolveInputDef={(f) => {
               const field = fields.find((x) => x.id === f.id);
-              const overrides: Record<string, any> = {};
-              if (field?.tooltip) overrides.tooltip = field.tooltip;
               // Inject current picklist options from the field config at render time
               if (field?.fieldType === "picklist") {
                 const opts = [...(field.config?.options || [])].sort((a: any, b: any) => a.label.localeCompare(b.label));
-                overrides.options = opts;
+                const overrides: Record<string, any> = { options: opts };
                 if (field.config?.multiselect) overrides.type = "badge-multiselect";
+                return overrides;
               }
-              return overrides;
+              return {};
             }}
             renderView={(f) => {
               const field = fields.find((x) => x.id === f.id);
@@ -638,7 +628,10 @@ export default function EntryRecordView({
                 if (!hasValue && !editing) return null;
                 return (
                   <div key={field.id}>
-                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>{field.name}{field.required && editing && <span style={{ color: "#f87171", marginLeft: 3 }}>*</span>}</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      <span>{field.name}{field.required && editing && <span style={{ color: "#f87171", marginLeft: 3 }}>*</span>}</span>
+                      {field.tooltip && <InfoTooltip text={field.tooltip} />}
+                    </div>
                     <div style={{ fontSize: 13, color: "#e2e8f0" }}>
                       {editing ? renderFieldEditor(field) : renderFieldValue(field, value)}
                     </div>
@@ -785,10 +778,33 @@ function LookupFieldEditor({ field, lorebookId, recordId, entryTypes, baseUrl, l
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+  const [targetAliasMap, setTargetAliasMap] = useState<Record<string, { singularName: string; bgColor?: string; fgColor?: string }>>({});
   const targetIds: string[] = field.config?.targetEntryTypeIds || [];
   const fieldLookups = lookups.filter((lk) => lk.customFieldId === field.id);
   const existingIds = new Set(fieldLookups.map((lk) => lk.record1 === recordId ? lk.record2 : lk.record1));
   const canAddMore = field.config?.multiselect !== false || fieldLookups.length === 0;
+
+  useEffect(() => {
+    if (targetIds.length === 0) return;
+    const fetchAliases = async () => {
+      const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
+      await Promise.all(
+        targetIds.map(async (typeId) => {
+          try {
+            const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/aliases`);
+            if (res.ok) {
+              const data = await res.json();
+              for (const a of data.aliases || []) {
+                map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
+              }
+            }
+          } catch {}
+        })
+      );
+      setTargetAliasMap(map);
+    };
+    fetchAliases();
+  }, [lorebookId, targetIds.join(",")]);
 
   useEffect(() => {
     if (!search.trim()) { setResults([]); return; }
@@ -876,7 +892,13 @@ function LookupFieldEditor({ field, lorebookId, recordId, entryTypes, baseUrl, l
                       <span style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
                     ) : null}
                     <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
-                    {et && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff" }}>{et.singularName}</span>}
+                    {(() => {
+                      const alias = r.aliasId ? targetAliasMap[r.aliasId] : undefined;
+                      const label = alias ? alias.singularName : et?.singularName;
+                      const bg = alias ? (alias.bgColor || "#334155") : (et?.bgColor || "#334155");
+                      const fg = alias ? (alias.fgColor || "#fff") : (et?.fgColor || "#fff");
+                      return label ? <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: bg, color: fg }}>{label}</span> : null;
+                    })()}
                   </div>
                 );
               })}

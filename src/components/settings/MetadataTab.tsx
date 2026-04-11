@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
   ButtonIcon,
@@ -484,7 +484,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           name: fieldValues.name.trim(),
           fieldType: fieldValues.fieldType,
           config: buildFieldConfig(fieldValues),
-          aliasIds: [],
+          aliasIds: fieldValues.aliasIds || [],
           required: !!fieldValues.required,
           tooltip: fieldValues.tooltip || "",
         }),
@@ -529,6 +529,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       allowCustom: cfg.allowCustom,
       required: !!field.required,
       tooltip: field.tooltip || "",
+      aliasIds: field.aliasIds || [],
       // number
       decimals: cfg.decimals ?? 0,
       min: cfg.min ?? "",
@@ -563,6 +564,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     const updates: any = {
       required: !!editFieldValues.required,
       tooltip: editFieldValues.tooltip || "",
+      aliasIds: editFieldValues.aliasIds || [],
     };
     if (editingField.fieldType === "picklist")
       updates.config = {
@@ -602,25 +604,6 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     } else addToast("Failed to update field", "error");
   };
 
-  const handleUpdateFieldAliases = async (
-    field: EntryField,
-    aliasIds: string[],
-  ) => {
-    if (!activeTypeId) return;
-    const res = await fetch(
-      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields/${field.id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aliasIds }),
-      },
-    );
-    if (res.ok) {
-      setFields((prev) =>
-        prev.map((f) => (f.id === field.id ? { ...f, aliasIds } : f)),
-      );
-    }
-  };
 
   // ── Form layout ─────────────────────────────────────────────────────────────
 
@@ -1655,6 +1638,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 </span>
                               )}
                             </span>
+                            {field.required && (
+                              <span style={{ fontSize: 11, color: "#fca5a5", background: "#450a0a", padding: "2px 7px", borderRadius: 4 }}>
+                                Required
+                              </span>
+                            )}
+                            {(field.aliasIds?.length ?? 0) > 0 && (
+                              <span style={{ fontSize: 11, color: "#93c5fd", background: "#172554", padding: "2px 7px", borderRadius: 4 }}>
+                                Restricted
+                              </span>
+                            )}
                             <span
                               style={{
                                 fontSize: 11,
@@ -1685,80 +1678,6 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               />
                             )}
                           </div>
-                          {/* Alias restriction for field */}
-                          {aliases.length > 0 && (
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <span style={{ fontSize: 11, color: "#475569" }}>
-                                Visible for:
-                              </span>
-                              <span
-                                onClick={() =>
-                                  canEdit && handleUpdateFieldAliases(field, [])
-                                }
-                                style={{
-                                  padding: "2px 7px",
-                                  borderRadius: 999,
-                                  fontSize: 11,
-                                  cursor: canEdit ? "pointer" : "default",
-                                  background: !field.aliasIds?.length
-                                    ? "#1e3a5f"
-                                    : "#0f172a",
-                                  color: !field.aliasIds?.length
-                                    ? "#93c5fd"
-                                    : "#64748b",
-                                  border: !field.aliasIds?.length
-                                    ? "2px solid #60a5fa"
-                                    : "1px solid #334155",
-                                }}
-                              >
-                                All
-                              </span>
-                              {aliases.map((a) => {
-                                const sel = (field.aliasIds || []).includes(
-                                  a.id,
-                                );
-                                return (
-                                  <span
-                                    key={a.id}
-                                    onClick={() => {
-                                      if (!canEdit) return;
-                                      const cur = field.aliasIds || [];
-                                      handleUpdateFieldAliases(
-                                        field,
-                                        sel
-                                          ? cur.filter((id) => id !== a.id)
-                                          : [...cur, a.id],
-                                      );
-                                    }}
-                                    style={{
-                                      padding: "2px 7px",
-                                      borderRadius: 999,
-                                      fontSize: 11,
-                                      cursor: canEdit ? "pointer" : "default",
-                                      background: sel
-                                        ? a.bgColor || "#1e293b"
-                                        : "#0f172a",
-                                      color: sel
-                                        ? a.fgColor || "#e2e8f0"
-                                        : "#64748b",
-                                      border: sel
-                                        ? "2px solid #60a5fa"
-                                        : "1px solid #334155",
-                                    }}
-                                  >
-                                    {a.pluralName}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -2372,6 +2291,24 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
               />
             </div>
+            {aliases.length > 0 && (
+              <DynamicInput
+                input={{
+                  id: "aliasIds",
+                  label: "Restrict to aliases (optional)",
+                  type: "badge-multiselect",
+                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
+                    value: a.id,
+                    label: a.pluralName,
+                    selectedColor: a.bgColor || "#334155",
+                    fgColor: a.fgColor || "#f1f5f9",
+                  })),
+                }}
+                value={fieldValues.aliasIds || []}
+                onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+              />
+            )}
             {fieldValues.fieldType === "picklist" && (
               <>
                 <DynamicInput
@@ -2603,6 +2540,24 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               value={editFieldValues.tooltip ?? ""}
               onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
             />
+            {aliases.length > 0 && (
+              <DynamicInput
+                input={{
+                  id: "aliasIds",
+                  label: "Restrict to aliases (optional)",
+                  type: "badge-multiselect",
+                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
+                    value: a.id,
+                    label: a.pluralName,
+                    selectedColor: a.bgColor || "#334155",
+                    fgColor: a.fgColor || "#f1f5f9",
+                  })),
+                }}
+                value={editFieldValues.aliasIds || []}
+                onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+              />
+            )}
             {editingField.fieldType === "picklist" && (
               <>
                 <DynamicInput
