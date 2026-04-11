@@ -131,6 +131,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
             closeable: true,
             openable: true,
             iconName: "hamburger",
+            title: "Settings",
             scrollable: true,
             background: "#0c1a2e",
             onClose: () => setNavOpen(false),

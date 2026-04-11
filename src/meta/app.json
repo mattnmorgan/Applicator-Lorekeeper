@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 1, "dev": 0 },
+  "version": { "major": 1, "minor": 1, "dev": 1 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -11,196 +11,739 @@
       "name": "lorebook",
       "description": "A lorebook owned by a user",
       "fields": [
-        { "name": "name", "description": "Lorebook name", "type": "string", "required": true },
-        { "name": "blurb", "description": "Short description of the lorebook", "type": "string" },
-        { "name": "hasIcon", "description": "Whether a filesystem icon exists for this lorebook", "type": "boolean" },
-        { "name": "ownerId", "description": "User who owns the lorebook", "type": "relationship", "relatedTo": "system:user", "required": true }
+        {
+          "name": "name",
+          "description": "Lorebook name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "blurb",
+          "description": "Short description of the lorebook",
+          "type": "string"
+        },
+        {
+          "name": "hasIcon",
+          "description": "Whether a filesystem icon exists for this lorebook",
+          "type": "boolean"
+        },
+        {
+          "name": "ownerId",
+          "description": "User who owns the lorebook",
+          "type": "relationship",
+          "relatedTo": "system:user",
+          "required": true
+        }
       ]
     },
     {
       "name": "lorebook_member",
       "description": "Shared access entry for a lorebook",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "userId", "description": "User who has access", "type": "relationship", "relatedTo": "system:user", "required": true },
-        { "name": "role", "description": "Access role level", "type": "picklist", "required": true, "options": { "view": "View", "edit": "Edit", "manager": "Manager" } }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "userId",
+          "description": "User who has access",
+          "type": "relationship",
+          "relatedTo": "system:user",
+          "required": true
+        },
+        {
+          "name": "role",
+          "description": "Access role level",
+          "type": "picklist",
+          "required": true,
+          "options": { "view": "View", "edit": "Edit", "manager": "Manager" }
+        }
       ]
     },
     {
       "name": "entry_type",
       "description": "An entry category defined in a lorebook's metadata",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "singularName", "description": "Singular name for this entry type (e.g. Character)", "type": "string", "required": true },
-        { "name": "pluralName", "description": "Plural name for this entry type (e.g. Characters)", "type": "string", "required": true },
-        { "name": "icon", "description": "SDK icon name for this entry type (fallback when hasIcon is false)", "type": "string" },
-        { "name": "hasIcon", "description": "Whether a filesystem icon image exists for this entry type", "type": "boolean" },
-        { "name": "blurb", "description": "Short description of this entry type", "type": "string" },
-        { "name": "parentTypeId", "description": "Parent entry type ID for tree hierarchy", "type": "relationship", "relatedTo": "entry_type" },
-        { "name": "bgColor", "description": "Badge background hex color", "type": "string" },
-        { "name": "fgColor", "description": "Badge foreground/text hex color", "type": "string" },
-        { "name": "sortOrder", "description": "Display sort order", "type": "number" },
-        { "name": "formLayout", "description": "JSON form layout defining sections, rows, and column field assignments", "type": "json" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "singularName",
+          "description": "Singular name for this entry type (e.g. Character)",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "pluralName",
+          "description": "Plural name for this entry type (e.g. Characters)",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "icon",
+          "description": "SDK icon name for this entry type (fallback when hasIcon is false)",
+          "type": "string"
+        },
+        {
+          "name": "hasIcon",
+          "description": "Whether a filesystem icon image exists for this entry type",
+          "type": "boolean"
+        },
+        {
+          "name": "blurb",
+          "description": "Short description of this entry type",
+          "type": "string"
+        },
+        {
+          "name": "parentTypeId",
+          "description": "Parent entry type ID for tree hierarchy",
+          "type": "relationship",
+          "relatedTo": "entry_type"
+        },
+        {
+          "name": "bgColor",
+          "description": "Badge background hex color",
+          "type": "string"
+        },
+        {
+          "name": "fgColor",
+          "description": "Badge foreground/text hex color",
+          "type": "string"
+        },
+        {
+          "name": "sortOrder",
+          "description": "Display sort order",
+          "type": "number"
+        },
+        {
+          "name": "formLayout",
+          "description": "JSON form layout defining sections, rows, and column field assignments",
+          "type": "json"
+        }
       ]
     },
     {
       "name": "entry_type_alias",
       "description": "An alias (alternate name) for an entry type",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "singularName", "description": "Singular alias name", "type": "string", "required": true },
-        { "name": "pluralName", "description": "Plural alias name", "type": "string", "required": true }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "entryTypeId",
+          "description": "Parent entry type",
+          "type": "relationship",
+          "relatedTo": "entry_type",
+          "required": true
+        },
+        {
+          "name": "singularName",
+          "description": "Singular alias name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "pluralName",
+          "description": "Plural alias name",
+          "type": "string",
+          "required": true
+        }
       ]
     },
     {
       "name": "entry_section",
       "description": "A section of fields or a related list for an entry type",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "name", "description": "Section display name", "type": "string", "required": true },
-        { "name": "sectionType", "description": "Whether this section contains fields or a related list", "type": "picklist", "required": true, "options": { "fields": "Fields", "related_list": "Related List" } },
-        { "name": "sortOrder", "description": "Display sort order", "type": "number" },
-        { "name": "config", "description": "JSON configuration (e.g. aliasIds restriction)", "type": "json" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "entryTypeId",
+          "description": "Parent entry type",
+          "type": "relationship",
+          "relatedTo": "entry_type",
+          "required": true
+        },
+        {
+          "name": "name",
+          "description": "Section display name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "sectionType",
+          "description": "Whether this section contains fields or a related list",
+          "type": "picklist",
+          "required": true,
+          "options": { "fields": "Fields", "related_list": "Related List" }
+        },
+        {
+          "name": "sortOrder",
+          "description": "Display sort order",
+          "type": "number"
+        },
+        {
+          "name": "config",
+          "description": "JSON configuration (e.g. aliasIds restriction)",
+          "type": "json"
+        }
       ]
     },
     {
       "name": "entry_field",
       "description": "A custom field defined in an entry section",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "entryTypeId", "description": "Parent entry type", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "sectionId", "description": "Parent section (optional for type-level fields)", "type": "relationship", "relatedTo": "entry_section" },
-        { "name": "name", "description": "Field display name", "type": "string", "required": true },
-        { "name": "fieldType", "description": "Field data type", "type": "picklist", "required": true, "options": {
-          "text": "Text",
-          "rich_text": "Rich Text",
-          "picklist": "Picklist",
-          "toggle": "Toggle",
-          "number": "Number",
-          "lookup": "Lookup"
-        }},
-        { "name": "config", "description": "JSON configuration specific to the field type", "type": "json" },
-        { "name": "aliasIds", "description": "Alias IDs this field is restricted to (empty array = visible for all)", "type": "json" },
-        { "name": "required", "description": "Whether this field must have a value when saving an entry record", "type": "boolean" },
-        { "name": "sortOrder", "description": "Display sort order within the section", "type": "number" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "entryTypeId",
+          "description": "Parent entry type",
+          "type": "relationship",
+          "relatedTo": "entry_type",
+          "required": true
+        },
+        {
+          "name": "sectionId",
+          "description": "Parent section (optional for type-level fields)",
+          "type": "relationship",
+          "relatedTo": "entry_section"
+        },
+        {
+          "name": "name",
+          "description": "Field display name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "fieldType",
+          "description": "Field data type",
+          "type": "picklist",
+          "required": true,
+          "options": {
+            "text": "Text",
+            "rich_text": "Rich Text",
+            "picklist": "Picklist",
+            "toggle": "Toggle",
+            "number": "Number",
+            "lookup": "Lookup"
+          }
+        },
+        {
+          "name": "config",
+          "description": "JSON configuration specific to the field type",
+          "type": "json"
+        },
+        {
+          "name": "aliasIds",
+          "description": "Alias IDs this field is restricted to (empty array = visible for all)",
+          "type": "json"
+        },
+        {
+          "name": "required",
+          "description": "Whether this field must have a value when saving an entry record",
+          "type": "boolean"
+        },
+        {
+          "name": "sortOrder",
+          "description": "Display sort order within the section",
+          "type": "number"
+        }
       ]
     },
     {
       "name": "related_list_item",
       "description": "An entry type + field pairing for a related list section",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "sectionId", "description": "Parent related list section", "type": "relationship", "relatedTo": "entry_section", "required": true },
-        { "name": "entryTypeId", "description": "Entry type whose records appear in this list", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "fieldId", "description": "Lookup field on the related entry type that links back", "type": "relationship", "relatedTo": "entry_field", "required": true }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "sectionId",
+          "description": "Parent related list section",
+          "type": "relationship",
+          "relatedTo": "entry_section",
+          "required": true
+        },
+        {
+          "name": "entryTypeId",
+          "description": "Entry type whose records appear in this list",
+          "type": "relationship",
+          "relatedTo": "entry_type",
+          "required": true
+        },
+        {
+          "name": "fieldId",
+          "description": "Lookup field on the related entry type that links back",
+          "type": "relationship",
+          "relatedTo": "entry_field",
+          "required": true
+        }
       ]
     },
     {
       "name": "entry_record",
       "description": "An entry record in a lorebook",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "entryTypeId", "description": "Entry type this record belongs to", "type": "relationship", "relatedTo": "entry_type", "required": true },
-        { "name": "name", "description": "Record name", "type": "string", "required": true },
-        { "name": "blurb", "description": "Short description of this record", "type": "string" },
-        { "name": "hasIcon", "description": "Whether a filesystem icon exists for this record", "type": "boolean" },
-        { "name": "aliasId", "description": "Optional alias ID if this record was created under a specific alias", "type": "relationship", "relatedTo": "entry_type_alias" },
-        { "name": "fieldData", "description": "JSON map of custom field ID to value", "type": "json" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "entryTypeId",
+          "description": "Entry type this record belongs to",
+          "type": "relationship",
+          "relatedTo": "entry_type",
+          "required": true
+        },
+        {
+          "name": "name",
+          "description": "Record name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "blurb",
+          "description": "Short description of this record",
+          "type": "string"
+        },
+        {
+          "name": "hasIcon",
+          "description": "Whether a filesystem icon exists for this record",
+          "type": "boolean"
+        },
+        {
+          "name": "aliasId",
+          "description": "Optional alias ID if this record was created under a specific alias",
+          "type": "relationship",
+          "relatedTo": "entry_type_alias"
+        },
+        {
+          "name": "fieldData",
+          "description": "JSON map of custom field ID to value",
+          "type": "json"
+        }
       ]
     },
     {
       "name": "record_lookup",
       "description": "A named relationship between two entry records via a lookup field",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "customFieldId", "description": "The lookup field that defines this relationship", "type": "relationship", "relatedTo": "entry_field", "required": true },
-        { "name": "record1", "description": "Source record ID", "type": "relationship", "relatedTo": "entry_record", "required": true },
-        { "name": "record2", "description": "Target record ID", "type": "relationship", "relatedTo": "entry_record", "required": true },
-        { "name": "aToB", "description": "Relationship label from record1 to record2", "type": "string" },
-        { "name": "bToA", "description": "Relationship label from record2 to record1", "type": "string" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "customFieldId",
+          "description": "The lookup field that defines this relationship",
+          "type": "relationship",
+          "relatedTo": "entry_field",
+          "required": true
+        },
+        {
+          "name": "record1",
+          "description": "Source record ID",
+          "type": "relationship",
+          "relatedTo": "entry_record",
+          "required": true
+        },
+        {
+          "name": "record2",
+          "description": "Target record ID",
+          "type": "relationship",
+          "relatedTo": "entry_record",
+          "required": true
+        },
+        {
+          "name": "aToB",
+          "description": "Relationship label from record1 to record2",
+          "type": "string"
+        },
+        {
+          "name": "bToA",
+          "description": "Relationship label from record2 to record1",
+          "type": "string"
+        }
       ]
     },
     {
       "name": "entry_attachment",
       "description": "A file attached to an entry record",
       "fields": [
-        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
-        { "name": "entryRecordId", "description": "Parent entry record", "type": "relationship", "relatedTo": "entry_record", "required": true },
-        { "name": "filename", "description": "Original filename", "type": "string", "required": true },
-        { "name": "mimeType", "description": "MIME type of the file", "type": "string" },
-        { "name": "size", "description": "File size in bytes", "type": "number" },
-        { "name": "hasThumb", "description": "Whether a thumbnail has been generated for this attachment", "type": "boolean" }
+        {
+          "name": "lorebookId",
+          "description": "Parent lorebook",
+          "type": "relationship",
+          "relatedTo": "lorebook",
+          "required": true
+        },
+        {
+          "name": "entryRecordId",
+          "description": "Parent entry record",
+          "type": "relationship",
+          "relatedTo": "entry_record",
+          "required": true
+        },
+        {
+          "name": "filename",
+          "description": "Original filename",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "mimeType",
+          "description": "MIME type of the file",
+          "type": "string"
+        },
+        {
+          "name": "size",
+          "description": "File size in bytes",
+          "type": "number"
+        },
+        {
+          "name": "hasThumb",
+          "description": "Whether a thumbnail has been generated for this attachment",
+          "type": "boolean"
+        }
       ]
     }
   ],
   "authorizations": [
-    { "id": "create-lorebook", "name": "Create Lorebook", "description": "Allows the user to create new lorebooks", "target": "user" }
+    {
+      "id": "create-lorebook",
+      "name": "Create Lorebook",
+      "description": "Allows the user to create new lorebooks",
+      "target": "user"
+    }
   ],
   "authorities": [
-    { "id": "lorekeeper-user", "name": "Lorekeeper User", "authorizations": ["lorekeeper:create-lorebook"] },
+    {
+      "id": "lorekeeper-user",
+      "name": "Lorekeeper User",
+      "authorizations": ["lorekeeper:create-lorebook"]
+    },
     { "id": "lorebook-member", "name": "Lorebook Member", "authorizations": [] }
   ],
   "apiRoutes": [
-    { "path": "lorebooks", "method": "GET", "description": "List lorebooks the user owns or has access to" },
-    { "path": "lorebooks", "method": "POST", "description": "Create a new lorebook" },
-    { "path": "lorebooks/[lorebook-id]", "method": "GET", "description": "Get a lorebook" },
-    { "path": "lorebooks/[lorebook-id]", "method": "PATCH", "description": "Update a lorebook" },
-    { "path": "lorebooks/[lorebook-id]", "method": "DELETE", "description": "Delete a lorebook and all its data" },
-    { "path": "lorebooks/[lorebook-id]/icon", "method": "GET", "description": "Serve lorebook icon" },
-    { "path": "lorebooks/[lorebook-id]/icon", "method": "POST", "description": "Upload lorebook icon" },
-    { "path": "lorebooks/[lorebook-id]/members", "method": "GET", "description": "List lorebook members" },
-    { "path": "lorebooks/[lorebook-id]/members", "method": "POST", "description": "Add a lorebook member" },
-    { "path": "lorebooks/[lorebook-id]/members/[user-id]", "method": "PATCH", "description": "Update a member role or promote to owner" },
-    { "path": "lorebooks/[lorebook-id]/members/[user-id]", "method": "DELETE", "description": "Remove a lorebook member" },
-    { "path": "lorebooks/[lorebook-id]/entry-types", "method": "GET", "description": "List entry types for a lorebook" },
-    { "path": "lorebooks/[lorebook-id]/entry-types", "method": "POST", "description": "Create an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]", "method": "GET", "description": "Get an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]", "method": "PATCH", "description": "Update an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]", "method": "DELETE", "description": "Delete an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon", "method": "GET", "description": "Serve entry type icon" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon", "method": "POST", "description": "Upload entry type icon" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases", "method": "GET", "description": "List aliases for an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases", "method": "POST", "description": "Create an alias" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]", "method": "PATCH", "description": "Update an alias" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]", "method": "DELETE", "description": "Delete an alias" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections", "method": "GET", "description": "List sections for an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections", "method": "POST", "description": "Create a section" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/reorder", "method": "POST", "description": "Reorder sections" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]", "method": "PATCH", "description": "Update a section" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]", "method": "DELETE", "description": "Delete a section and its fields" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields", "method": "GET", "description": "List all fields for an entry type (type-level, across all sections)" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields", "method": "POST", "description": "Create a type-level field (no section required)" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]", "method": "PATCH", "description": "Update a type-level field's name, config, or aliasIds" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]", "method": "DELETE", "description": "Delete a type-level field" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout", "method": "GET", "description": "Get the form layout for an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout", "method": "PATCH", "description": "Update the form layout for an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "GET", "description": "List fields in a section" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields", "method": "POST", "description": "Create a field" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/reorder", "method": "POST", "description": "Reorder fields" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]", "method": "PATCH", "description": "Update a field's config" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]", "method": "DELETE", "description": "Delete a field" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related", "method": "GET", "description": "List related list pairings" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related", "method": "POST", "description": "Add a related list pairing" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related/[related-id]", "method": "DELETE", "description": "Remove a related list pairing" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records", "method": "GET", "description": "List entry records for an entry type" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records", "method": "POST", "description": "Create an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]", "method": "GET", "description": "Get an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]", "method": "PATCH", "description": "Update an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]", "method": "DELETE", "description": "Delete an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/icon", "method": "GET", "description": "Serve entry record icon" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/icon", "method": "POST", "description": "Upload entry record icon" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups", "method": "GET", "description": "List lookups for an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups", "method": "POST", "description": "Create a record lookup" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups/[lookup-id]", "method": "DELETE", "description": "Delete a record lookup" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments", "method": "GET", "description": "List attachments for an entry record" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments", "method": "POST", "description": "Upload an attachment" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]", "method": "GET", "description": "Download an attachment" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]", "method": "DELETE", "description": "Delete an attachment" },
-    { "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]/thumb", "method": "GET", "description": "Serve attachment thumbnail" },
-    { "path": "lorebooks/[lorebook-id]/metadata/export", "method": "GET", "description": "Export lorebook metadata as JSON" },
-    { "path": "lorebooks/[lorebook-id]/metadata/import", "method": "POST", "description": "Import metadata into a lorebook" },
+    {
+      "path": "lorebooks",
+      "method": "GET",
+      "description": "List lorebooks the user owns or has access to"
+    },
+    {
+      "path": "lorebooks",
+      "method": "POST",
+      "description": "Create a new lorebook"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]",
+      "method": "GET",
+      "description": "Get a lorebook"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]",
+      "method": "PATCH",
+      "description": "Update a lorebook"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]",
+      "method": "DELETE",
+      "description": "Delete a lorebook and all its data"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/icon",
+      "method": "GET",
+      "description": "Serve lorebook icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/icon",
+      "method": "POST",
+      "description": "Upload lorebook icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/members",
+      "method": "GET",
+      "description": "List lorebook members"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/members",
+      "method": "POST",
+      "description": "Add a lorebook member"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/members/[user-id]",
+      "method": "PATCH",
+      "description": "Update a member role or promote to owner"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/members/[user-id]",
+      "method": "DELETE",
+      "description": "Remove a lorebook member"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types",
+      "method": "GET",
+      "description": "List entry types for a lorebook"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types",
+      "method": "POST",
+      "description": "Create an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]",
+      "method": "GET",
+      "description": "Get an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]",
+      "method": "PATCH",
+      "description": "Update an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]",
+      "method": "DELETE",
+      "description": "Delete an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon",
+      "method": "GET",
+      "description": "Serve entry type icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon",
+      "method": "POST",
+      "description": "Upload entry type icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases",
+      "method": "GET",
+      "description": "List aliases for an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases",
+      "method": "POST",
+      "description": "Create an alias"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]",
+      "method": "PATCH",
+      "description": "Update an alias"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]",
+      "method": "DELETE",
+      "description": "Delete an alias"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections",
+      "method": "GET",
+      "description": "List sections for an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections",
+      "method": "POST",
+      "description": "Create a section"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/reorder",
+      "method": "POST",
+      "description": "Reorder sections"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]",
+      "method": "PATCH",
+      "description": "Update a section"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]",
+      "method": "DELETE",
+      "description": "Delete a section and its fields"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields",
+      "method": "GET",
+      "description": "List all fields for an entry type (type-level, across all sections)"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields",
+      "method": "POST",
+      "description": "Create a type-level field (no section required)"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]",
+      "method": "PATCH",
+      "description": "Update a type-level field's name, config, or aliasIds"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/fields/[field-id]",
+      "method": "DELETE",
+      "description": "Delete a type-level field"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout",
+      "method": "GET",
+      "description": "Get the form layout for an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/form-layout",
+      "method": "PATCH",
+      "description": "Update the form layout for an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields",
+      "method": "GET",
+      "description": "List fields in a section"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields",
+      "method": "POST",
+      "description": "Create a field"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/reorder",
+      "method": "POST",
+      "description": "Reorder fields"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]",
+      "method": "PATCH",
+      "description": "Update a field's config"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/fields/[field-id]",
+      "method": "DELETE",
+      "description": "Delete a field"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related",
+      "method": "GET",
+      "description": "List related list pairings"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related",
+      "method": "POST",
+      "description": "Add a related list pairing"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/sections/[section-id]/related/[related-id]",
+      "method": "DELETE",
+      "description": "Remove a related list pairing"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records",
+      "method": "GET",
+      "description": "List entry records for an entry type"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records",
+      "method": "POST",
+      "description": "Create an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]",
+      "method": "GET",
+      "description": "Get an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]",
+      "method": "PATCH",
+      "description": "Update an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]",
+      "method": "DELETE",
+      "description": "Delete an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/icon",
+      "method": "GET",
+      "description": "Serve entry record icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/icon",
+      "method": "POST",
+      "description": "Upload entry record icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups",
+      "method": "GET",
+      "description": "List lookups for an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups",
+      "method": "POST",
+      "description": "Create a record lookup"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/lookups/[lookup-id]",
+      "method": "DELETE",
+      "description": "Delete a record lookup"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments",
+      "method": "GET",
+      "description": "List attachments for an entry record"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments",
+      "method": "POST",
+      "description": "Upload an attachment"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]",
+      "method": "GET",
+      "description": "Download an attachment"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]",
+      "method": "DELETE",
+      "description": "Delete an attachment"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]/thumb",
+      "method": "GET",
+      "description": "Serve attachment thumbnail"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/metadata/export",
+      "method": "GET",
+      "description": "Export lorebook metadata as JSON"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/metadata/import",
+      "method": "POST",
+      "description": "Import metadata into a lorebook"
+    },
     { "path": "users", "method": "GET", "description": "Search users" }
   ],
   "agents": [],

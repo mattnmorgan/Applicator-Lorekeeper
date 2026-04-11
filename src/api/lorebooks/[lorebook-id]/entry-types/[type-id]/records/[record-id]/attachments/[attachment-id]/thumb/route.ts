@@ -35,10 +35,12 @@ export async function GET(
     const exists = await context.appFileManager.exists(thumbPath);
     if (!exists) return NextResponse.json({ error: "Thumbnail not found" }, { status: 404 });
 
-    const buffer = await context.appFileManager.readFile(thumbPath);
-    return new NextResponse(buffer, {
+    const raw = await context.appFileManager.readFile(thumbPath);
+    const buf = raw instanceof Buffer ? raw : Buffer.from(raw);
+    const contentType = buf[0] === 0x89 && buf[1] === 0x50 ? "image/png" : "image/jpeg";
+    return new NextResponse(buf, {
       headers: {
-        "Content-Type": "image/jpeg",
+        "Content-Type": contentType,
         "Cache-Control": "public, max-age=3600",
       },
     });

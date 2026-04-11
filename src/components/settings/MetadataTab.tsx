@@ -163,6 +163,29 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [relatedFieldId, setRelatedFieldId] = useState("");
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
 
+  // Per-type icon version for cache-busting after upload
+  const [typeIconVersions, setTypeIconVersions] = useState<Record<string, number>>({});
+
+  // Debounce ref for badge color updates
+  const colorSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleColorChange = (field: "bgColor" | "fgColor", value: string) => {
+    if (!activeTypeId) return;
+    // Optimistic update for immediate preview
+    setEntryTypes((prev) =>
+      prev.map((t) => (t.id === activeTypeId ? { ...t, [field]: value } : t)),
+    );
+    // Debounced server save
+    if (colorSaveRef.current) clearTimeout(colorSaveRef.current);
+    colorSaveRef.current = setTimeout(() => {
+      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+    }, 600);
+  };
+
   // Form layout save debounce
   const formLayoutSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -768,7 +791,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               >
                 {et.hasIcon ? (
                   <img
-                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${et.id}/icon`}
+                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${et.id}/icon${typeIconVersions[et.id] ? `?v=${typeIconVersions[et.id]}` : ""}`}
                     style={{
                       width: 14,
                       height: 14,
@@ -857,7 +880,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               >
                 {activeType.hasIcon ? (
                   <img
-                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`}
+                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon${typeIconVersions[activeType.id] ? `?v=${typeIconVersions[activeType.id]}` : ""}`}
                     style={{
                       width: 20,
                       height: 20,
@@ -963,7 +986,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 label="Icon"
                                 value={
                                   activeType.hasIcon
-                                    ? `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon`
+                                    ? `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeType.id}/icon${typeIconVersions[activeType.id] ? `?v=${typeIconVersions[activeType.id]}` : ""}`
                                     : null
                                 }
                                 onChange={async (dataUrl) => {
@@ -981,13 +1004,15 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                   );
                                   if (res.ok) {
                                     const data = await res.json();
+                                    const typeId = activeType.id;
                                     setEntryTypes((prev) =>
                                       prev.map((t) =>
-                                        t.id === activeType.id
+                                        t.id === typeId
                                           ? { ...t, hasIcon: data.hasIcon }
                                           : t,
                                       ),
                                     );
+                                    setTypeIconVersions((prev) => ({ ...prev, [typeId]: (prev[typeId] || 0) + 1 }));
                                   }
                                 }}
                                 previewSize={48}
@@ -1091,9 +1116,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 <input
                                   type="color"
                                   value={activeType.bgColor || "#334155"}
-                                  onChange={(e) =>
-                                    handleUpdateType("bgColor", e.target.value)
-                                  }
+                                  onChange={(e) => handleColorChange("bgColor", e.target.value)}
                                   style={{
                                     width: 36,
                                     height: 28,
@@ -1130,9 +1153,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 <input
                                   type="color"
                                   value={activeType.fgColor || "#f1f5f9"}
-                                  onChange={(e) =>
-                                    handleUpdateType("fgColor", e.target.value)
-                                  }
+                                  onChange={(e) => handleColorChange("fgColor", e.target.value)}
                                   style={{
                                     width: 36,
                                     height: 28,
@@ -1298,7 +1319,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 />
                                 <input
                                   type="color"
-                                  value={editingAlias.bgColor || "#1e293b"}
+                                  value={editingAlias.bgColor || activeType?.bgColor || "#334155"}
                                   onChange={(e) =>
                                     setEditingAlias({
                                       ...editingAlias,
@@ -1318,7 +1339,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 />
                                 <input
                                   type="color"
-                                  value={editingAlias.fgColor || "#94a3b8"}
+                                  value={editingAlias.fgColor || activeType?.fgColor || "#f1f5f9"}
                                   onChange={(e) =>
                                     setEditingAlias({
                                       ...editingAlias,
@@ -1335,6 +1356,18 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     background: "transparent",
                                     flexShrink: 0,
                                   }}
+                                />
+                                <ButtonIcon
+                                  name="refresh"
+                                  label="Reset to parent type colors"
+                                  size="sm"
+                                  onClick={() =>
+                                    setEditingAlias({
+                                      ...editingAlias,
+                                      bgColor: activeType?.bgColor || "#334155",
+                                      fgColor: activeType?.fgColor || "#f1f5f9",
+                                    })
+                                  }
                                 />
                                 <ButtonIcon
                                   name="check"
@@ -1377,8 +1410,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                         fontSize: 11,
                                         padding: "2px 8px",
                                         borderRadius: 4,
-                                        background: alias.bgColor || "#1e293b",
-                                        color: alias.fgColor || "#94a3b8",
+                                        background: alias.bgColor || activeType?.bgColor || "#334155",
+                                        color: alias.fgColor || activeType?.fgColor || "#f1f5f9",
                                         flexShrink: 0,
                                       }}
                                     >
@@ -1409,8 +1442,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                       fontSize: 11,
                                       padding: "2px 8px",
                                       borderRadius: 4,
-                                      background: alias.bgColor || "#1e293b",
-                                      color: alias.fgColor || "#94a3b8",
+                                      background: alias.bgColor || activeType?.bgColor || "#334155",
+                                      color: alias.fgColor || activeType?.fgColor || "#f1f5f9",
                                       flexShrink: 0,
                                     }}
                                   >
@@ -1634,7 +1667,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           onChange={canEdit ? handleFormLayoutChange : () => {}}
                           getDefaultInputDef={
                             canEdit
-                              ? (field) => {
+                              ? (fieldBadge) => {
+                                  if (fieldBadge.fieldType === "picklist") {
+                                    const actualField = fields.find((f) => f.id === fieldBadge.id);
+                                    return { type: actualField?.config?.multiselect ? "badge-multiselect" : "select" };
+                                  }
                                   const typeMap: Record<
                                     string,
                                     SerializedInputDef["type"]
@@ -1643,9 +1680,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     rich_text: "richtext",
                                     toggle: "toggle",
                                     number: "number",
-                                    picklist: "select",
                                   };
-                                  const t = typeMap[field.fieldType];
+                                  const t = typeMap[fieldBadge.fieldType];
                                   return t ? { type: t } : undefined;
                                 }
                               : undefined
@@ -2322,9 +2358,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   <DynamicInput
                     input={{
                       id: "aToB",
-                      label: "A→B Label",
+                      label: "This record's label",
                       type: "text",
                       placeholder: "e.g. father",
+                      tooltip: "Label shown on this record when it points to a linked record (e.g. \"father\")",
                     }}
                     value={fieldValues.aToB ?? ""}
                     onChange={(id, v) =>
@@ -2334,9 +2371,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   <DynamicInput
                     input={{
                       id: "bToA",
-                      label: "B→A Label",
+                      label: "Linked record's label",
                       type: "text",
                       placeholder: "e.g. son",
+                      tooltip: "Label shown on the linked record when it appears in a related section (e.g. \"son\")",
                     }}
                     value={fieldValues.bToA ?? ""}
                     onChange={(id, v) =>
@@ -2556,11 +2594,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 }}
               >
                 <option value="">Select entry type…</option>
-                {entryTypes
-                  .filter((t) => t.id !== activeTypeId)
+                {[...entryTypes]
+                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
                   .map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.pluralName}
+                      {t.pluralName}{t.id === activeTypeId ? " (self)" : ""}
                     </option>
                   ))}
               </select>

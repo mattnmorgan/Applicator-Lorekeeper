@@ -278,7 +278,13 @@ export default function EntryRecordView({
 
   const renderFieldValue = (field: EntryField, value: any) => {
     if (field.fieldType === "rich_text") return <RichTextViewer html={value || ""} />;
-    if (field.fieldType === "toggle") return <span style={{ color: value ? "#4ade80" : "#ef4444" }}>{value ? "Yes" : "No"}</span>;
+    if (field.fieldType === "toggle") return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <div style={{ width: 32, height: 18, borderRadius: 9, background: value ? "#3b82f6" : "#334155", position: "relative", flexShrink: 0 }}>
+          <div style={{ position: "absolute", top: 2, left: value ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+        </div>
+      </div>
+    );
     if (field.fieldType === "lookup") {
       const fieldLookups = lookups.filter((lk) => lk.customFieldId === field.id);
       if (fieldLookups.length === 0) return <span style={{ color: "#64748b" }}>—</span>;
@@ -431,7 +437,7 @@ export default function EntryRecordView({
 
   // FormViewerField list for FormViewer
   const viewerFields: FormViewerField[] = fields.map((f) => ({
-    id: f.id, name: f.name, fieldType: f.fieldType, aliasIds: f.aliasIds,
+    id: f.id, name: f.name, fieldType: f.fieldType, aliasIds: f.aliasIds, required: f.required,
   }));
 
   // Returns inputDef stored on the layout column for this field, if any.
@@ -463,7 +469,7 @@ export default function EntryRecordView({
           <ButtonIcon name="chevron-left" label={`Back to ${entryType?.pluralName || "entries"}`} onClick={onBack} />
           <div style={{ width: 28, height: 28, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {record.hasIcon
-              ? <img src={`${baseUrl}/icon`} style={{ width: 28, height: 28, objectFit: "cover" }} alt="" />
+              ? <img src={`${baseUrl}/icon${iconVersion > 0 ? `?v=${iconVersion}` : ""}`} style={{ width: 28, height: 28, objectFit: "cover" }} alt="" />
               : <span style={{ color: "#64748b" }}><Icon name={(entryType?.icon as any) || "file"} size={14} /></span>
             }
           </div>
@@ -572,7 +578,9 @@ export default function EntryRecordView({
               // Inject current picklist options from the field config at render time
               if (field?.fieldType === "picklist") {
                 const opts = [...(field.config?.options || [])].sort((a: any, b: any) => a.label.localeCompare(b.label));
-                return { options: opts };
+                const overrides: Record<string, any> = { options: opts };
+                if (field.config?.multiselect) overrides.type = "badge-multiselect";
+                return overrides;
               }
               return {};
             }}

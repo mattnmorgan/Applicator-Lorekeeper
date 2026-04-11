@@ -13,13 +13,20 @@ export async function GET(
     if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const iconPath = entryTypeIconPath(params.lorebookId, params.typeId);
-    const exists = await context.appFileManager.exists(iconPath);
-    if (!exists) return NextResponse.json({ error: "No icon" }, { status: 404 });
+    const legacyPath = iconPath.replace(/\.png$/, ".jpg");
+    let iconBuffer: Buffer | Uint8Array | undefined;
+    let contentType = "image/png";
+    if (await context.appFileManager.exists(iconPath)) {
+      iconBuffer = await context.appFileManager.readFile(iconPath);
+    } else if (await context.appFileManager.exists(legacyPath)) {
+      iconBuffer = await context.appFileManager.readFile(legacyPath);
+      contentType = "image/jpeg";
+    }
+    if (!iconBuffer) return NextResponse.json({ error: "No icon" }, { status: 404 });
 
-    const buffer = await context.appFileManager.readFile(iconPath);
-    return new NextResponse(buffer, {
+    return new NextResponse(iconBuffer, {
       headers: {
-        "Content-Type": "image/jpeg",
+        "Content-Type": contentType,
         "Cache-Control": "public, max-age=3600",
       },
     });
@@ -48,6 +55,7 @@ export async function POST(
       return NextResponse.json({ success: true, hasIcon: true });
     } else {
       try { await context.appFileManager.deleteFile(iconPath); } catch {}
+      try { await context.appFileManager.deleteFile(iconPath.replace(/\.png$/, ".jpg")); } catch {}
       await types.updateRecord(table, params.typeId, { hasIcon: false });
       return NextResponse.json({ success: true, hasIcon: false });
     }
