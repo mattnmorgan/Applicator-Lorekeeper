@@ -7,6 +7,7 @@ import DetailsTab from "./settings/DetailsTab";
 import MetadataTab from "./settings/MetadataTab";
 import MembershipTab from "./settings/MembershipTab";
 import DeleteTab from "./settings/DeleteTab";
+import ExportImportTab from "./settings/ExportImportTab";
 
 interface Lorebook {
   id: string;
@@ -26,6 +27,7 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "details", label: "Details", icon: "edit" },
   { id: "metadata", label: "Lore Metadata", icon: "library" },
   { id: "membership", label: "Membership", icon: "users" },
+  { id: "export-import", label: "Export / Import", icon: "download" },
   { id: "delete", label: "Delete", icon: "trash" },
 ];
 
@@ -60,6 +62,7 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
         const active = t.id === tab;
         const isDanger = t.id === "delete";
         if (t.id === "membership" && !canManage) return null;
+        if (t.id === "export-import" && !canManage) return null;
         if (t.id === "delete" && !isOwner) return null;
         return (
           <div
@@ -144,6 +147,9 @@ export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
             )}
             {tab === "membership" && canManage && (
               <MembershipTab lorebookId={lorebookId} isOwner={isOwner} addToast={addToast} navigate={navigate} />
+            )}
+            {tab === "export-import" && canManage && (
+              <ExportImportTab lorebookId={lorebookId} lorebookName={lorebook?.name || ""} addToast={addToast} onImported={() => navigate({ type: "lorebook", lorebookId })} />
             )}
             {tab === "delete" && isOwner && (
               <DeleteTab lorebookId={lorebookId} lorebookName={lorebook?.name || ""} onDeleted={() => navigate({ type: "lorebooks" })} addToast={addToast} />

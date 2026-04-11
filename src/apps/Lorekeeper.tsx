@@ -6,7 +6,7 @@ import LorebookList from "../components/LorebookList";
 import LorebookView from "../components/LorebookView";
 import LorebookSettings from "../components/LorebookSettings";
 
-export type SettingsTab = "details" | "metadata" | "membership" | "delete";
+export type SettingsTab = "details" | "metadata" | "membership" | "delete" | "export-import";
 
 export type AppView =
   | { type: "lorebooks" }

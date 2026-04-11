@@ -139,54 +139,6 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <ButtonIcon
-            name="download"
-            label="Export metadata"
-            onClick={async () => {
-              const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/metadata/export`);
-              if (res.ok) {
-                const data = await res.json();
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${lorebook?.name || "lorebook"}-metadata.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }
-            }}
-          />
-          <ButtonIcon
-            name="upload"
-            label="Import metadata"
-            onClick={() => {
-              const input = document.createElement("input");
-              input.type = "file";
-              input.accept = ".json";
-              input.onchange = async () => {
-                const file = input.files?.[0];
-                if (!file) return;
-                try {
-                  const text = await file.text();
-                  const data = JSON.parse(text);
-                  const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/metadata/import`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(data),
-                  });
-                  if (res.ok) {
-                    addToast("Metadata imported successfully");
-                    fetchData();
-                  } else {
-                    addToast("Import failed", "error");
-                  }
-                } catch {
-                  addToast("Invalid JSON file", "error");
-                }
-              };
-              input.click();
-            }}
-          />
-          <ButtonIcon
             name="settings"
             label="Lorebook settings"
             onClick={() => navigate({ type: "settings", lorebookId, tab: "details" })}
@@ -209,6 +161,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
             iconName: "hamburger",
             scrollable: true,
             background: "#0c1a2e",
+            title: "Entry Types",
             onClose: () => setNavOpen(false),
             onOpen: () => setNavOpen(true),
             children: (

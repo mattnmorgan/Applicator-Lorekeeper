@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ButtonIcon, Icon, Button, Modal, ConfirmModal, Spinner,
   RichTextEditor, RichTextViewer, FilePreview, isPreviewSupported,
-  FormViewer,
+  FormViewer, DynamicInput,
 } from "@applicator/sdk/components";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
@@ -46,6 +46,7 @@ interface EntryField {
   fieldType: string;
   config: any;
   aliasIds?: string[];
+  required?: boolean;
   sortOrder: number;
 }
 
@@ -203,6 +204,18 @@ export default function EntryRecordView({
 
   const handleSave = async () => {
     if (!record) return;
+    // Validate required fields
+    const missingRequired = fields.filter((f) => {
+      if (!f.required) return false;
+      const val = editValues.fieldData?.[f.id];
+      if (val === undefined || val === null || val === "") return true;
+      if (Array.isArray(val) && val.length === 0) return true;
+      return false;
+    });
+    if (missingRequired.length > 0) {
+      addToast(`Required fields missing: ${missingRequired.map((f) => f.name).join(", ")}`, "error");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(baseUrl, {
@@ -300,9 +313,14 @@ export default function EntryRecordView({
       if (field.config?.multiselect) {
         const vals = Array.isArray(value) ? value : (value ? [value] : []);
         if (vals.length === 0) return <span style={{ color: "#64748b" }}>—</span>;
+        const sortedVals = [...vals].sort((a: string, b: string) => {
+          const la = field.config?.options?.find((o: any) => o.value === a)?.label || a;
+          const lb = field.config?.options?.find((o: any) => o.value === b)?.label || b;
+          return la.localeCompare(lb);
+        });
         return (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {vals.map((v: string) => {
+            {sortedVals.map((v: string) => {
               const opt = field.config?.options?.find((o: any) => o.value === v);
               return <span key={v} style={{ background: "#334155", borderRadius: 4, padding: "2px 6px", fontSize: 12, color: "#e2e8f0" }}>{opt?.label || v}</span>;
             })}
@@ -322,8 +340,11 @@ export default function EntryRecordView({
 
     if (field.fieldType === "text") {
       return (
-        <textarea value={value || ""} onChange={(e) => setFieldValue(field.id, e.target.value)}
-          style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, resize: "vertical", minHeight: 60, outline: "none", boxSizing: "border-box" }} />
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "text", placeholder: "Enter value…" }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
       );
     }
     if (field.fieldType === "rich_text") {
@@ -331,48 +352,49 @@ export default function EntryRecordView({
     }
     if (field.fieldType === "toggle") {
       return (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={!!value} onChange={(e) => setFieldValue(field.id, e.target.checked)} />
-          <span style={{ fontSize: 13, color: "#94a3b8" }}>{value ? "Yes" : "No"}</span>
-        </label>
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "toggle" }}
+          value={!!value}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
       );
     }
     if (field.fieldType === "number") {
       return (
-        <input type="number" value={value ?? ""} min={cfg.min} max={cfg.max}
-          step={cfg.decimals ? Math.pow(10, -cfg.decimals) : 1}
-          onChange={(e) => setFieldValue(field.id, e.target.value === "" ? null : Number(e.target.value))}
-          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }} />
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "number", min: cfg.min != null ? String(cfg.min) : undefined, max: cfg.max != null ? String(cfg.max) : undefined, step: cfg.decimals ? String(Math.pow(10, -cfg.decimals)) : "1", decimalPlaces: cfg.decimals ?? 0 }}
+          value={value ?? ""}
+          onChange={(_, v) => setFieldValue(field.id, v === "" ? null : Number(v))}
+        />
       );
     }
     if (field.fieldType === "picklist") {
-      const opts: Array<{ value: string; label: string }> = cfg.options || [];
+      const opts: Array<{ value: string; label: string }> = [...(cfg.options || [])].sort((a: any, b: any) => a.label.localeCompare(b.label));
       if (cfg.multiselect) {
-        const selected: string[] = Array.isArray(value) ? value : (value ? [value] : []);
         return (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {opts.map((opt) => {
-              const isSelected = selected.includes(opt.value);
-              return (
-                <span key={opt.value} onClick={() => setFieldValue(field.id, isSelected ? selected.filter((v) => v !== opt.value) : [...selected, opt.value])}
-                  style={{ padding: "3px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer", background: isSelected ? "#3b82f6" : "#1e293b", color: isSelected ? "#fff" : "#94a3b8", border: `1px solid ${isSelected ? "#3b82f6" : "#334155"}` }}>
-                  {opt.label}
-                </span>
-              );
-            })}
-            {cfg.allowCustom && (
-              <input placeholder="Custom value…" onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { setFieldValue(field.id, [...selected, e.currentTarget.value.trim()]); e.currentTarget.value = ""; } }}
-                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "3px 8px", color: "#f1f5f9", fontSize: 12, outline: "none" }} />
-            )}
-          </div>
+          <DynamicInput
+            input={{
+              id: field.id,
+              label: "",
+              type: "badge-multiselect",
+              options: opts,
+            }}
+            value={Array.isArray(value) ? value : (value ? [value] : [])}
+            onChange={(_, v) => setFieldValue(field.id, v)}
+          />
         );
       }
       return (
-        <select value={value || ""} onChange={(e) => setFieldValue(field.id, e.target.value)}
-          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }}>
-          <option value="">— Select —</option>
-          {opts.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
+        <DynamicInput
+          input={{
+            id: field.id,
+            label: "",
+            type: "select",
+            options: opts,
+          }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
       );
     }
     if (field.fieldType === "lookup") {
@@ -412,6 +434,19 @@ export default function EntryRecordView({
     id: f.id, name: f.name, fieldType: f.fieldType, aliasIds: f.aliasIds,
   }));
 
+  // Returns inputDef stored on the layout column for this field, if any.
+  const getColInputDef = (fieldId: string) => {
+    if (!formLayout) return undefined;
+    for (const sec of formLayout.sections) {
+      for (const row of sec.rows) {
+        for (const col of row.columns) {
+          if (col.fieldId === fieldId) return col.inputDef;
+        }
+      }
+    }
+    return undefined;
+  };
+
   const previewableAttachments = attachments.filter((a) => isPreviewSupported(a.filename));
   const previewIndex = previewFile ? previewableAttachments.findIndex((a) => a.id === previewFile.id) : -1;
 
@@ -450,7 +485,7 @@ export default function EntryRecordView({
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 24px" }}>
         {/* Entry heading */}
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 20 }}>
           {/* Icon */}
@@ -477,6 +512,15 @@ export default function EntryRecordView({
               ? <img src={`${baseUrl}/icon${iconVersion > 0 ? `?v=${iconVersion}` : ""}`} style={{ width: 64, height: 64, objectFit: "cover" }} alt="" />
               : <span style={{ color: "#64748b" }}><Icon name={(entryType?.icon as any) || "file"} size={28} /></span>
             }
+            {canEdit && editing && record.hasIcon && (
+              <div style={{ position: "absolute", top: 2, right: 2 }}>
+                <ButtonIcon name="close" label="Clear icon" size="sm" subvariant="danger" onClick={async (e) => {
+                  (e as any).stopPropagation?.();
+                  const res = await fetch(`${baseUrl}/icon`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ iconData: null }) });
+                  if (res.ok) { setRecord((r) => r ? { ...r, hasIcon: false } : r); setIconVersion((v) => v + 1); }
+                }} />
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1 }}>
@@ -521,15 +565,35 @@ export default function EntryRecordView({
             fields={viewerFields}
             activeAliasId={activeAliasId}
             editing={editing}
+            values={editing ? editValues.fieldData : record.fieldData}
+            onChange={setFieldValue}
+            resolveInputDef={(f) => {
+              const field = fields.find((x) => x.id === f.id);
+              // Inject current picklist options from the field config at render time
+              if (field?.fieldType === "picklist") {
+                const opts = [...(field.config?.options || [])].sort((a: any, b: any) => a.label.localeCompare(b.label));
+                return { options: opts };
+              }
+              return {};
+            }}
             renderView={(f) => {
               const field = fields.find((x) => x.id === f.id);
               if (!field) return null;
-              return renderFieldValue(field, record.fieldData?.[field.id]);
+              // Lookup needs custom rendering; richtext needs RichTextViewer in view mode
+              if (field.fieldType === "lookup") return renderFieldValue(field, record.fieldData?.[field.id]);
+              if (field.fieldType === "rich_text") return <RichTextViewer html={record.fieldData?.[field.id] || ""} />;
+              // If no inputDef is configured yet, fall back to manual rendering for all types
+              if (!getColInputDef(f.id)) return renderFieldValue(field, record.fieldData?.[field.id]);
+              return null; // defer to FormViewer's built-in DynamicInput view rendering
             }}
             renderEditor={(f) => {
               const field = fields.find((x) => x.id === f.id);
               if (!field) return null;
-              return renderFieldEditor(field);
+              // Lookup always needs custom editing UI (not expressible via DynamicInput)
+              if (field.fieldType === "lookup") return renderFieldEditor(field);
+              // If no inputDef is configured yet, fall back to manual rendering
+              if (!getColInputDef(f.id)) return renderFieldEditor(field);
+              return null; // defer to FormViewer's built-in DynamicInput editing
             }}
           />
         ) : (
@@ -546,7 +610,7 @@ export default function EntryRecordView({
                 if (!hasValue && !editing) return null;
                 return (
                   <div key={field.id}>
-                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>{field.name}</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>{field.name}{field.required && editing && <span style={{ color: "#f87171", marginLeft: 3 }}>*</span>}</div>
                     <div style={{ fontSize: 13, color: "#e2e8f0" }}>
                       {editing ? renderFieldEditor(field) : renderFieldValue(field, value)}
                     </div>

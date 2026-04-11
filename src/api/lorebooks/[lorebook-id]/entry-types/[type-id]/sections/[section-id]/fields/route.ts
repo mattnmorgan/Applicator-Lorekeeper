@@ -68,6 +68,8 @@ export async function POST(
       name: body.name.trim(),
       fieldType: body.fieldType,
       config: body.config || {},
+      aliasIds: body.aliasIds || [],
+      required: !!body.required,
       sortOrder: maxSort + 1,
     });
 

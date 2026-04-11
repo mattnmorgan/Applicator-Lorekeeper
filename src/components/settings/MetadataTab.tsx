@@ -5,7 +5,7 @@ import {
   Button, ButtonIcon, Icon, Modal, ConfirmModal, DynamicInput, Spinner, ImageUpload,
   FormEditor,
 } from "@applicator/sdk/components";
-import type { FormLayout, FormFieldBadge, FormAliasBadge } from "@applicator/sdk/components";
+import type { FormLayout, FormFieldBadge, FormAliasBadge, SerializedInputDef } from "@applicator/sdk/components";
 
 // ─── Local types ──────────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ interface EntryField {
   fieldType: string;
   config: any;
   aliasIds?: string[];
+  required?: boolean;
   sortOrder: number;
 }
 
@@ -260,7 +261,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: fieldValues.name.trim(), fieldType: fieldValues.fieldType, config: buildFieldConfig(fieldValues), aliasIds: [] }),
+      body: JSON.stringify({ name: fieldValues.name.trim(), fieldType: fieldValues.fieldType, config: buildFieldConfig(fieldValues), aliasIds: [], required: !!fieldValues.required }),
     });
     if (res.ok) {
       const field = await res.json();
@@ -290,7 +291,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const openEditField = async (field: EntryField) => {
     setEditingField(field);
     const cfg = (field.config || {}) as any;
-    setEditFieldValues({ options: cfg.options ? [...cfg.options] : [], multiselect: cfg.multiselect, allowCustom: cfg.allowCustom });
+    setEditFieldValues({ options: cfg.options ? [...cfg.options] : [], multiselect: cfg.multiselect, allowCustom: cfg.allowCustom, required: !!field.required });
     if (field.fieldType === "picklist" && activeTypeId) {
       try {
         const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/records`);
@@ -310,7 +311,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
   const handleSaveField = async () => {
     if (!editingField || !activeTypeId) return;
-    const updates: any = {};
+    const updates: any = { required: !!editFieldValues.required };
     if (editingField.fieldType === "picklist")
       updates.config = { options: editFieldValues.options || [], multiselect: !!editFieldValues.multiselect, allowCustom: !!editFieldValues.allowCustom };
     const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields/${editingField.id}`, {
@@ -472,7 +473,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   ? <img src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${et.id}/icon`} style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} alt="" />
                   : <span style={{ color: "#64748b", flexShrink: 0 }}><Icon name={(et.icon as any) || "file"} size={12} /></span>
                 }
-                <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
                   <span style={{ display: "inline-block", maxWidth: "100%", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "2px 6px", borderRadius: 4, background: et.bgColor || "#334155", color: et.fgColor || "#f1f5f9" }}>
                     {et.pluralName}
                   </span>
@@ -524,18 +525,18 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             </div>
 
             {/* Tab content */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px" }}>
+            <div style={activeTab === "form" ? { flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" } : { flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px" }}>
               {loadingTypeData ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner /></div>
               ) : (
                 <>
                   {/* ── Details tab ── */}
                   {activeTab === "details" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {canEdit && (
                         <>
                           {/* Icon + Parent Type */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                             <div>
                               <ImageUpload
                                 key={activeType.id}
@@ -569,14 +570,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             </div>
                           </div>
                           {/* Names */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                             <InlineEdit label="Singular Name" value={activeType.singularName} onSave={(v) => handleUpdateType("singularName", v)} />
                             <InlineEdit label="Plural Name" value={activeType.pluralName} onSave={(v) => handleUpdateType("pluralName", v)} />
                           </div>
                           {/* Summary */}
                           <InlineEdit label="Summary" value={activeType.blurb} onSave={(v) => handleUpdateType("blurb", v)} multiline />
                           {/* Badge colors */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, alignItems: "end" }}>
                             <div>
                               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Badge Background</div>
                               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -600,7 +601,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       )}
 
                       {/* Aliases */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: canEdit ? 4 : 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: canEdit ? 4 : 0 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9" }}>Aliases</span>
@@ -624,13 +625,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               </div>
                             ) : (
                               <>
-                                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8", flexShrink: 0 }}>{alias.singularName}</span>
                                 <span style={{ flex: 1, fontSize: 12, color: "#e2e8f0" }}>{alias.pluralName} <span style={{ color: "#64748b" }}>/ {alias.singularName}</span></span>
                                 {canEdit && (
                                   <>
+                                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8", flexShrink: 0 }}>{alias.singularName}</span>
                                     <ButtonIcon name="edit" label="Edit alias" size="sm" onClick={() => setEditingAlias({ ...alias })} />
                                     <ButtonIcon name="trash" label="Delete alias" subvariant="danger" size="sm" onClick={() => handleDeleteAlias(alias.id)} />
                                   </>
+                                )}
+                                {!canEdit && (
+                                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8", flexShrink: 0 }}>{alias.singularName}</span>
                                 )}
                               </>
                             )}
@@ -651,10 +655,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       {fields.map((field) => (
                         <div key={field.id} style={{ background: "#1e293b", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0", fontWeight: 500 }}>{field.name}</span>
+                            <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0", fontWeight: 500 }}>{field.name}{field.required && <span style={{ color: "#f87171", marginLeft: 3 }}>*</span>}</span>
                             <span style={{ fontSize: 11, color: "#94a3b8", background: "#0f172a", padding: "2px 7px", borderRadius: 4 }}>{FIELD_TYPE_LABELS[field.fieldType] || field.fieldType}</span>
-                            {canEdit && field.fieldType === "picklist" && (
-                              <ButtonIcon name="edit" label="Edit options" size="sm" onClick={() => openEditField(field)} />
+                            {canEdit && (
+                              <ButtonIcon name="edit" label="Edit field" size="sm" onClick={() => openEditField(field)} />
                             )}
                             {canEdit && (
                               <ButtonIcon name="trash" label="Delete field" subvariant="danger" size="sm" onClick={() => handleDeleteField(field.id)} />
@@ -666,7 +670,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               <span style={{ fontSize: 11, color: "#475569" }}>Visible for:</span>
                               <span
                                 onClick={() => canEdit && handleUpdateFieldAliases(field, [])}
-                                style={{ padding: "2px 7px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: !field.aliasIds?.length ? "#3b82f6" : "#0f172a", color: !field.aliasIds?.length ? "#fff" : "#64748b", border: `1px solid ${!field.aliasIds?.length ? "#3b82f6" : "#334155"}` }}
+                                style={{ padding: "2px 7px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: !field.aliasIds?.length ? "#1e3a5f" : "#0f172a", color: !field.aliasIds?.length ? "#93c5fd" : "#64748b", border: !field.aliasIds?.length ? "2px solid #60a5fa" : "1px solid #334155" }}
                               >All</span>
                               {aliases.map((a) => {
                                 const sel = (field.aliasIds || []).includes(a.id);
@@ -678,7 +682,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                       const cur = field.aliasIds || [];
                                       handleUpdateFieldAliases(field, sel ? cur.filter((id) => id !== a.id) : [...cur, a.id]);
                                     }}
-                                    style={{ padding: "2px 7px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: sel ? (a.bgColor || "#3b82f6") : "#0f172a", color: sel ? (a.fgColor || "#fff") : "#64748b", border: `1px solid ${sel ? (a.bgColor || "#3b82f6") : "#334155"}` }}
+                                    style={{ padding: "2px 7px", borderRadius: 999, fontSize: 11, cursor: canEdit ? "pointer" : "default", background: sel ? (a.bgColor || "#1e293b") : "#0f172a", color: sel ? (a.fgColor || "#e2e8f0") : "#64748b", border: sel ? "2px solid #60a5fa" : "1px solid #334155" }}
                                   >{a.pluralName}</span>
                                 );
                               })}
@@ -691,7 +695,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
                   {/* ── Form tab ── */}
                   {activeTab === "form" && (
-                    <div style={{ height: "100%", minHeight: 400 }}>
+                    <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", padding: "16px 24px 24px 24px" }}>
                       {fields.length === 0 ? (
                         <div style={{ color: "#64748b", fontSize: 13 }}>Add fields in the Fields tab first.</div>
                       ) : (
@@ -700,6 +704,17 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           fields={formEditorFields}
                           aliases={formEditorAliases}
                           onChange={canEdit ? handleFormLayoutChange : () => {}}
+                          getDefaultInputDef={canEdit ? (field) => {
+                            const typeMap: Record<string, SerializedInputDef["type"]> = {
+                              text: "text",
+                              rich_text: "richtext",
+                              toggle: "toggle",
+                              number: "number",
+                              picklist: "select",
+                            };
+                            const t = typeMap[field.fieldType];
+                            return t ? { type: t } : undefined;
+                          } : undefined}
                         />
                       )}
                     </div>
@@ -827,7 +842,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         >
           <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
             <DynamicInput input={{ id: "name", label: "Field Name", type: "text", required: true, placeholder: "Hair Color" }} value={fieldValues.name} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
-            <DynamicInput input={{ id: "fieldType", label: "Field Type", type: "select", options: FIELD_TYPES.map((t) => ({ value: t, label: FIELD_TYPE_LABELS[t] })) }} value={fieldValues.fieldType} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
+              <DynamicInput input={{ id: "fieldType", label: "Field Type", type: "select", options: FIELD_TYPES.map((t) => ({ value: t, label: FIELD_TYPE_LABELS[t] })) }} value={fieldValues.fieldType} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
+              <DynamicInput input={{ id: "required", label: "Required", type: "toggle" }} value={!!fieldValues.required} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
+            </div>
             {fieldValues.fieldType === "picklist" && (
               <>
                 <DynamicInput input={{ id: "multiselect", label: "Allow multiple selections", type: "toggle" }} value={fieldValues.multiselect} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
@@ -847,20 +865,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             {fieldValues.fieldType === "lookup" && (
               <>
                 <DynamicInput input={{ id: "lookupMultiselect", label: "Allow multiple values", type: "toggle" }} value={fieldValues.lookupMultiselect} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
-                <div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Target Entry Types</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {entryTypes.filter((t) => t.id !== activeTypeId).map((t) => {
-                      const selected = (fieldValues.targetTypeIds || []).includes(t.id);
-                      return (
-                        <span key={t.id} onClick={() => { const cur: string[] = fieldValues.targetTypeIds || []; setFieldValues((p) => ({ ...p, targetTypeIds: selected ? cur.filter((id) => id !== t.id) : [...cur, t.id] })); }}
-                          style={{ padding: "3px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer", background: selected ? "#3b82f6" : "#1e293b", color: selected ? "#fff" : "#94a3b8", border: `1px solid ${selected ? "#3b82f6" : "#334155"}` }}>
-                          {t.pluralName}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
+                <DynamicInput
+                  input={{
+                    id: "targetTypeIds",
+                    label: "Target Entry Types",
+                    type: "badge-multiselect",
+                    options: [...entryTypes].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((t) => ({
+                      value: t.id,
+                      label: t.pluralName,
+                      selectedColor: t.bgColor || "#3b82f6",
+                      fgColor: t.fgColor || "#fff",
+                    })),
+                  }}
+                  value={fieldValues.targetTypeIds || []}
+                  onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <DynamicInput input={{ id: "aToB", label: "A→B Label", type: "text", placeholder: "e.g. father" }} value={fieldValues.aToB ?? ""} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
                   <DynamicInput input={{ id: "bToA", label: "B→A Label", type: "text", placeholder: "e.g. son" }} value={fieldValues.bToA ?? ""} onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))} />
@@ -871,7 +890,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         </Modal>
       )}
 
-      {editingField && editingField.fieldType === "picklist" && (
+      {editingField && (
         <Modal
           header={<span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>Edit Field: {editingField.name}</span>}
           closeable onClose={() => setEditingField(null)}
@@ -879,9 +898,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           maxWidth={480}
         >
           <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-            <DynamicInput input={{ id: "multiselect", label: "Allow multiple selections", type: "toggle" }} value={editFieldValues.multiselect} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
-            <DynamicInput input={{ id: "allowCustom", label: "Allow user-defined custom values", type: "toggle" }} value={editFieldValues.allowCustom} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
-            <PicklistOptionsEditor values={editFieldValues.options || []} usedValues={usedPicklistValues} onChange={(opts) => setEditFieldValues((p) => ({ ...p, options: opts }))} />
+            <DynamicInput input={{ id: "required", label: "Required", type: "toggle", tooltip: "Entry records cannot be saved without a value for this field" }} value={!!editFieldValues.required} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
+            {editingField.fieldType === "picklist" && (
+              <>
+                <DynamicInput input={{ id: "multiselect", label: "Allow multiple selections", type: "toggle" }} value={editFieldValues.multiselect} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
+                <DynamicInput input={{ id: "allowCustom", label: "Allow user-defined custom values", type: "toggle" }} value={editFieldValues.allowCustom} onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))} />
+                <PicklistOptionsEditor values={editFieldValues.options || []} usedValues={usedPicklistValues} onChange={(opts) => setEditFieldValues((p) => ({ ...p, options: opts }))} />
+              </>
+            )}
           </div>
         </Modal>
       )}

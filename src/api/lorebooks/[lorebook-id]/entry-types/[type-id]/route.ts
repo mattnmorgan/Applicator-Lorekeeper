@@ -72,6 +72,10 @@ export async function DELETE(
     await context.withTransaction(async (client) => {
       const rm = (table: string) => context.recordManager("lorekeeper", table);
 
+      await rm("entry_type_alias").deleteFilteredRecords(
+        { filters: [{ field: "entryTypeId", operator: "=", value: params.typeId }] },
+        { client }
+      );
       await rm("related_list_item").deleteFilteredRecords(
         { filters: [{ field: "entryTypeId", operator: "=", value: params.typeId }] },
         { client }
