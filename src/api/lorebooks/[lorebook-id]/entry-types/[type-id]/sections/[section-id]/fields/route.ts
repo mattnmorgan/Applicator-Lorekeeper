@@ -70,6 +70,7 @@ export async function POST(
       config: body.config || {},
       aliasIds: body.aliasIds || [],
       required: !!body.required,
+      tooltip: body.tooltip || "",
       sortOrder: maxSort + 1,
     });
 

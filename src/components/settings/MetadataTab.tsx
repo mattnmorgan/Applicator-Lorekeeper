@@ -198,15 +198,27 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     if (!activeType || aliases.length === 0) return;
     setReparenting(true);
     try {
-      await Promise.all(
-        aliases.map((alias) =>
-          handleUpdateAlias(alias, {
+      const res = await fetch(
+        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/aliases`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ids: aliases.map((a) => a.id),
             bgColor: activeType.bgColor,
             fgColor: activeType.fgColor,
           }),
-        ),
+        },
       );
-      addToast("All aliases updated to match entry type colors");
+      if (res.ok) {
+        const { aliases: updated } = await res.json();
+        setAliases(
+          updated.sort((a: any, b: any) => a.pluralName.localeCompare(b.pluralName)),
+        );
+        addToast("All aliases updated to match entry type colors");
+      } else {
+        addToast("Failed to update aliases", "error");
+      }
     } finally {
       setReparenting(false);
     }
@@ -765,11 +777,13 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
   const emptyFormLayout: FormLayout = { sections: [] };
 
-  const formEditorFields: FormFieldBadge[] = fields.map((f) => ({
-    id: f.id,
-    name: f.name,
-    fieldType: f.fieldType,
-  }));
+  const formEditorFields: FormFieldBadge[] = [...fields]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      fieldType: f.fieldType,
+    }));
   const formEditorAliases: FormAliasBadge[] = aliases.map((a) => ({
     id: a.id,
     singularName: a.singularName,
@@ -1605,7 +1619,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           No fields yet
                         </div>
                       )}
-                      {fields.map((field) => (
+                      {[...fields].sort((a, b) => a.name.localeCompare(b.name)).map((field) => (
                         <div
                           key={field.id}
                           style={{

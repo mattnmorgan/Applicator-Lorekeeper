@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ButtonIcon, Icon, ConfirmModal, Spinner,
   RichTextEditor, RichTextViewer, FilePreview, isPreviewSupported,
@@ -300,7 +300,6 @@ export default function EntryRecordView({
             const otherName = isRecord1 ? lk.record2Name : lk.record1Name;
             const otherTypeId = isRecord1 ? lk.record2TypeId : lk.record1TypeId;
             const otherHasIcon = isRecord1 ? lk.record2HasIcon : lk.record1HasIcon;
-            const label = isRecord1 ? lk.aToB : lk.bToA;
             const et = entryTypes.find((t) => t.id === otherTypeId);
             return (
               <div key={lk.id}
@@ -312,7 +311,6 @@ export default function EntryRecordView({
                 ) : et ? (
                   <span style={{ width: 16, height: 16, borderRadius: 2, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
                 ) : null}
-                {label && <span style={{ color: "#64748b" }}>{label}:</span>}
                 <span style={{ color: "#e2e8f0" }}>{otherName}</span>
               </div>
             );
@@ -358,7 +356,7 @@ export default function EntryRecordView({
     if (field.fieldType === "text") {
       return (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "text", placeholder: "Enter value…" }}
+          input={{ id: field.id, label: "", type: "text", placeholder: "Enter value…", tooltip: field.tooltip }}
           value={value || ""}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
@@ -370,19 +368,30 @@ export default function EntryRecordView({
     if (field.fieldType === "toggle") {
       return (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "toggle" }}
+          input={{ id: field.id, label: "", type: "toggle", tooltip: field.tooltip }}
           value={!!value}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
       );
     }
     if (field.fieldType === "number") {
-      return (
+      const unit = cfg.unit as string | undefined;
+      const unitPos = (cfg.unitPosition as string) || "suffix";
+      const input = (
         <DynamicInput
-          input={{ id: field.id, label: "", type: "number", min: cfg.min != null ? String(cfg.min) : undefined, max: cfg.max != null ? String(cfg.max) : undefined, step: cfg.decimals ? String(Math.pow(10, -cfg.decimals)) : "1", decimalPlaces: cfg.decimals ?? 0 }}
+          input={{ id: field.id, label: "", type: "number", min: cfg.min != null ? String(cfg.min) : undefined, max: cfg.max != null ? String(cfg.max) : undefined, step: cfg.decimals ? String(Math.pow(10, -cfg.decimals)) : "1", decimalPlaces: cfg.decimals ?? 0, tooltip: field.tooltip }}
           value={value ?? ""}
           onChange={(_, v) => setFieldValue(field.id, v === "" ? null : Number(v))}
         />
+      );
+      if (!unit) return input;
+      const unitLabel = <span style={{ fontSize: 13, color: "#94a3b8", whiteSpace: "nowrap" }}>{unit}</span>;
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {unitPos === "prefix" && unitLabel}
+          {input}
+          {unitPos !== "prefix" && unitLabel}
+        </div>
       );
     }
     if (field.fieldType === "picklist") {
@@ -395,6 +404,7 @@ export default function EntryRecordView({
               label: "",
               type: "badge-multiselect",
               options: opts,
+              tooltip: field.tooltip,
             }}
             value={Array.isArray(value) ? value : (value ? [value] : [])}
             onChange={(_, v) => setFieldValue(field.id, v)}
@@ -408,6 +418,7 @@ export default function EntryRecordView({
             label: "",
             type: "select",
             options: opts,
+            tooltip: field.tooltip,
           }}
           value={value || ""}
           onChange={(_, v) => setFieldValue(field.id, v)}
@@ -579,14 +590,15 @@ export default function EntryRecordView({
             onChange={setFieldValue}
             resolveInputDef={(f) => {
               const field = fields.find((x) => x.id === f.id);
+              const overrides: Record<string, any> = {};
+              if (field?.tooltip) overrides.tooltip = field.tooltip;
               // Inject current picklist options from the field config at render time
               if (field?.fieldType === "picklist") {
                 const opts = [...(field.config?.options || [])].sort((a: any, b: any) => a.label.localeCompare(b.label));
-                const overrides: Record<string, any> = { options: opts };
+                overrides.options = opts;
                 if (field.config?.multiselect) overrides.type = "badge-multiselect";
-                return overrides;
               }
-              return {};
+              return overrides;
             }}
             renderView={(f) => {
               const field = fields.find((x) => x.id === f.id);
@@ -594,6 +606,8 @@ export default function EntryRecordView({
               // Lookup needs custom rendering; richtext needs RichTextViewer in view mode
               if (field.fieldType === "lookup") return renderFieldValue(field, record.fieldData?.[field.id]);
               if (field.fieldType === "rich_text") return <RichTextViewer html={record.fieldData?.[field.id] || ""} />;
+              // Number fields with a unit need custom rendering to show the unit
+              if (field.fieldType === "number" && field.config?.unit) return renderFieldValue(field, record.fieldData?.[field.id]);
               // If no inputDef is configured yet, fall back to manual rendering for all types
               if (!getColInputDef(f.id)) return renderFieldValue(field, record.fieldData?.[field.id]);
               return null; // defer to FormViewer's built-in DynamicInput view rendering
@@ -603,6 +617,8 @@ export default function EntryRecordView({
               if (!field) return null;
               // Lookup always needs custom editing UI (not expressible via DynamicInput)
               if (field.fieldType === "lookup") return renderFieldEditor(field);
+              // Number fields with a unit need custom editing UI to show the unit alongside the input
+              if (field.fieldType === "number" && field.config?.unit) return renderFieldEditor(field);
               // If no inputDef is configured yet, fall back to manual rendering
               if (!getColInputDef(f.id)) return renderFieldEditor(field);
               return null; // defer to FormViewer's built-in DynamicInput editing
@@ -821,7 +837,6 @@ function LookupFieldEditor({ field, lorebookId, recordId, entryTypes, baseUrl, l
         const otherName = isR1 ? lk.record2Name : lk.record1Name;
         const otherTypeId = isR1 ? lk.record2TypeId : lk.record1TypeId;
         const otherHasIcon = isR1 ? lk.record2HasIcon : lk.record1HasIcon;
-        const label = isR1 ? lk.aToB : lk.bToA;
         const et = entryTypes.find((t) => t.id === otherTypeId);
         return (
           <div key={lk.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e293b", borderRadius: 6, padding: "4px 8px" }}>
@@ -830,7 +845,6 @@ function LookupFieldEditor({ field, lorebookId, recordId, entryTypes, baseUrl, l
             ) : et ? (
               <span style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>{et.singularName[0]}</span>
             ) : null}
-            {label && <span style={{ fontSize: 11, color: "#64748b" }}>{label}:</span>}
             <span style={{ fontSize: 13, color: "#e2e8f0", flex: 1 }}>{otherName}</span>
             <ButtonIcon name="close" label="Remove" size="sm" onClick={() => handleRemove(lk.id)} />
           </div>

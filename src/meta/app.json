@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 1, "dev": 2 },
+  "version": { "major": 1, "minor": 1, "dev": 3 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -262,6 +262,11 @@
           "name": "required",
           "description": "Whether this field must have a value when saving an entry record",
           "type": "boolean"
+        },
+        {
+          "name": "tooltip",
+          "description": "Optional tooltip shown next to the field label",
+          "type": "string"
         },
         {
           "name": "sortOrder",
@@ -553,6 +558,11 @@
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases",
       "method": "POST",
       "description": "Create an alias"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases",
+      "method": "PATCH",
+      "description": "Bulk update aliases"
     },
     {
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases/[alias-id]",

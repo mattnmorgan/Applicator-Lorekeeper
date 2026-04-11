@@ -31,6 +31,59 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  context: ApiContext,
+  params: { lorebookId: string; typeId: string }
+) {
+  try {
+    const level = await getLorebookAccess(context, params.lorebookId);
+    if (!canEdit(level)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const body = await req.json();
+    const ids: string[] = body.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "ids array is required" }, { status: 400 });
+    }
+
+    const updates: any = {};
+    if (body.bgColor !== undefined) updates.bgColor = body.bgColor;
+    if (body.fgColor !== undefined) updates.fgColor = body.fgColor;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+    }
+
+    const aliases = context.recordManager("lorekeeper", "entry_type_alias");
+
+    // Verify all IDs belong to this lorebook and entry type
+    const result = await aliases.readRecords({
+      ids,
+      filters: [
+        { field: "lorebookId", operator: "=", value: params.lorebookId },
+        { field: "entryTypeId", operator: "=", value: params.typeId },
+      ],
+      condition: "1 AND 2",
+      limit: ids.length,
+    });
+
+    if (result.records.length !== ids.length) {
+      return NextResponse.json({ error: "One or more aliases not found" }, { status: 404 });
+    }
+
+    const table = await aliases.getTable();
+    const updated = await aliases.bulkUpdateRecords(
+      table,
+      ids.map((id) => ({ id, data: updates })),
+    );
+
+    const updatedRecords = updated.success.map((r: any) => ({ id: r.id, ...r.data }));
+    return NextResponse.json({ aliases: updatedRecords });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function POST(
   req: NextRequest,
   context: ApiContext,
