@@ -164,7 +164,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
 
   // Per-type icon version for cache-busting after upload
-  const [typeIconVersions, setTypeIconVersions] = useState<Record<string, number>>({});
+  const [typeIconVersions, setTypeIconVersions] = useState<
+    Record<string, number>
+  >({});
 
   // Debounce ref for badge color updates
   const colorSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,11 +180,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     // Debounced server save
     if (colorSaveRef.current) clearTimeout(colorSaveRef.current);
     colorSaveRef.current = setTimeout(() => {
-      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
-      });
+      fetch(
+        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value }),
+        },
+      );
     }, 600);
   };
 
@@ -1012,7 +1017,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                           : t,
                                       ),
                                     );
-                                    setTypeIconVersions((prev) => ({ ...prev, [typeId]: (prev[typeId] || 0) + 1 }));
+                                    setTypeIconVersions((prev) => ({
+                                      ...prev,
+                                      [typeId]: (prev[typeId] || 0) + 1,
+                                    }));
                                   }
                                 }}
                                 previewSize={48}
@@ -1116,7 +1124,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 <input
                                   type="color"
                                   value={activeType.bgColor || "#334155"}
-                                  onChange={(e) => handleColorChange("bgColor", e.target.value)}
+                                  onChange={(e) =>
+                                    handleColorChange("bgColor", e.target.value)
+                                  }
                                   style={{
                                     width: 36,
                                     height: 28,
@@ -1153,7 +1163,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 <input
                                   type="color"
                                   value={activeType.fgColor || "#f1f5f9"}
-                                  onChange={(e) => handleColorChange("fgColor", e.target.value)}
+                                  onChange={(e) =>
+                                    handleColorChange("fgColor", e.target.value)
+                                  }
                                   style={{
                                     width: 36,
                                     height: 28,
@@ -1319,7 +1331,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 />
                                 <input
                                   type="color"
-                                  value={editingAlias.bgColor || activeType?.bgColor || "#334155"}
+                                  value={
+                                    editingAlias.bgColor ||
+                                    activeType?.bgColor ||
+                                    "#334155"
+                                  }
                                   onChange={(e) =>
                                     setEditingAlias({
                                       ...editingAlias,
@@ -1339,7 +1355,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 />
                                 <input
                                   type="color"
-                                  value={editingAlias.fgColor || activeType?.fgColor || "#f1f5f9"}
+                                  value={
+                                    editingAlias.fgColor ||
+                                    activeType?.fgColor ||
+                                    "#f1f5f9"
+                                  }
                                   onChange={(e) =>
                                     setEditingAlias({
                                       ...editingAlias,
@@ -1410,8 +1430,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                         fontSize: 11,
                                         padding: "2px 8px",
                                         borderRadius: 4,
-                                        background: alias.bgColor || activeType?.bgColor || "#334155",
-                                        color: alias.fgColor || activeType?.fgColor || "#f1f5f9",
+                                        background:
+                                          alias.bgColor ||
+                                          activeType?.bgColor ||
+                                          "#334155",
+                                        color:
+                                          alias.fgColor ||
+                                          activeType?.fgColor ||
+                                          "#f1f5f9",
                                         flexShrink: 0,
                                       }}
                                     >
@@ -1442,8 +1468,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                       fontSize: 11,
                                       padding: "2px 8px",
                                       borderRadius: 4,
-                                      background: alias.bgColor || activeType?.bgColor || "#334155",
-                                      color: alias.fgColor || activeType?.fgColor || "#f1f5f9",
+                                      background:
+                                        alias.bgColor ||
+                                        activeType?.bgColor ||
+                                        "#334155",
+                                      color:
+                                        alias.fgColor ||
+                                        activeType?.fgColor ||
+                                        "#f1f5f9",
                                       flexShrink: 0,
                                     }}
                                   >
@@ -1464,7 +1496,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       style={{
                         display: "flex",
                         flexDirection: "column",
-                        gap: 10,
+                        gap: 0,
                       }}
                     >
                       <div
@@ -1669,8 +1701,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             canEdit
                               ? (fieldBadge) => {
                                   if (fieldBadge.fieldType === "picklist") {
-                                    const actualField = fields.find((f) => f.id === fieldBadge.id);
-                                    return { type: actualField?.config?.multiselect ? "badge-multiselect" : "select" };
+                                    const actualField = fields.find(
+                                      (f) => f.id === fieldBadge.id,
+                                    );
+                                    return {
+                                      type: actualField?.config?.multiselect
+                                        ? "badge-multiselect"
+                                        : "select",
+                                    };
                                   }
                                   const typeMap: Record<
                                     string,
@@ -2361,7 +2399,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       label: "This record's label",
                       type: "text",
                       placeholder: "e.g. father",
-                      tooltip: "Label shown on this record when it points to a linked record (e.g. \"father\")",
+                      tooltip:
+                        'Label shown on this record when it points to a linked record (e.g. "father")',
                     }}
                     value={fieldValues.aToB ?? ""}
                     onChange={(id, v) =>
@@ -2374,7 +2413,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       label: "Linked record's label",
                       type: "text",
                       placeholder: "e.g. son",
-                      tooltip: "Label shown on the linked record when it appears in a related section (e.g. \"son\")",
+                      tooltip:
+                        'Label shown on the linked record when it appears in a related section (e.g. "son")',
                     }}
                     value={fieldValues.bToA ?? ""}
                     onChange={(id, v) =>
@@ -2598,7 +2638,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
                   .map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.pluralName}{t.id === activeTypeId ? " (self)" : ""}
+                      {t.pluralName}
+                      {t.id === activeTypeId ? " (self)" : ""}
                     </option>
                   ))}
               </select>
