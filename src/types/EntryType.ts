@@ -39,6 +39,7 @@ export interface NumberConfig {
 export interface LookupConfig {
   multiselect: boolean;
   targetEntryTypeIds: string[];
+  targetAliasIds?: string[];
   aToB: string;
   bToA: string;
 }

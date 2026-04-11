@@ -53,10 +53,36 @@ export async function DELETE(
         { filters: [{ field: "customFieldId", operator: "=", value: params.fieldId }] },
         { client }
       );
-      await context.recordManager("lorekeeper", "related_list_item").deleteFilteredRecords(
+
+      // Find sections affected by removing this field's related list items
+      const relatedItems = context.recordManager("lorekeeper", "related_list_item");
+      const affectedItems = await relatedItems.readRecords({
+        filters: [{ field: "fieldId", operator: "=", value: params.fieldId }],
+        condition: "1",
+        limit: 500,
+      });
+      const affectedSectionIds = [...new Set(affectedItems.records.map((r: any) => r.data.sectionId as string))];
+
+      await relatedItems.deleteFilteredRecords(
         { filters: [{ field: "fieldId", operator: "=", value: params.fieldId }] },
         { client }
       );
+
+      // Delete any related_list sections that are now empty
+      if (affectedSectionIds.length > 0) {
+        const sections = context.recordManager("lorekeeper", "entry_section");
+        for (const sectionId of affectedSectionIds) {
+          const remaining = await relatedItems.readRecords({
+            filters: [{ field: "sectionId", operator: "=", value: sectionId }],
+            condition: "1",
+            limit: 1,
+          });
+          if (remaining.records.length === 0) {
+            await sections.deleteRecord(sectionId, { client });
+          }
+        }
+      }
+
       await fields.deleteRecord(params.fieldId, { client });
     });
 

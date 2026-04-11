@@ -163,6 +163,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [relatedTypeId, setRelatedTypeId] = useState("");
   const [relatedFieldId, setRelatedFieldId] = useState("");
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
+  const [renamingRelSecId, setRenamingRelSecId] = useState<string | null>(null);
+  const [relSecRenameValue, setRelSecRenameValue] = useState("");
+  const [lookupTargetAliasOptions, setLookupTargetAliasOptions] = useState<EntryTypeAlias[]>([]);
+  const [editingFieldTargetAliases, setEditingFieldTargetAliases] = useState<EntryTypeAlias[]>([]);
 
   // Per-type icon version for cache-busting after upload
   const [typeIconVersions, setTypeIconVersions] = useState<
@@ -464,6 +468,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       return {
         multiselect: !!values.lookupMultiselect,
         targetEntryTypeIds: values.targetTypeIds || [],
+        targetAliasIds: values.targetAliasIds || [],
         aToB: values.aToB || "",
         bToA: values.bToA || "",
       };
@@ -540,6 +545,19 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       aToB: cfg.aToB || "",
       bToA: cfg.bToA || "",
     });
+    if (field.fieldType === "lookup") {
+      const targetTypeIds: string[] = (field.config as any)?.targetEntryTypeIds || [];
+      if (targetTypeIds.length > 0) {
+        const results: EntryTypeAlias[] = [];
+        await Promise.all(targetTypeIds.map(async (tid) => {
+          try {
+            const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
+            if (r.ok) results.push(...((await r.json()).aliases || []));
+          } catch {}
+        }));
+        setEditingFieldTargetAliases(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+      } else setEditingFieldTargetAliases([]);
+    }
     if (field.fieldType === "picklist" && activeTypeId) {
       try {
         const res = await fetch(
@@ -654,6 +672,22 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setShowCreateRelSec(false);
       addToast("Related section created");
     } else addToast("Failed to create section", "error");
+  };
+
+  const handleRenameRelatedSection = async (sectionId: string, newName: string) => {
+    if (!activeTypeId || !newName.trim()) return;
+    const res = await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${sectionId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      },
+    );
+    if (res.ok) {
+      setSections((prev) => prev.map((s) => s.id === sectionId ? { ...s, name: newName.trim() } : s));
+      setRenamingRelSecId(null);
+    } else addToast("Failed to rename section", "error");
   };
 
   const handleDeleteRelatedSection = async (sec: EntrySection) => {
@@ -1777,7 +1811,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           No related sections yet
                         </div>
                       )}
-                      {sections.map((sec) => (
+                      {[...sections].sort((a, b) => a.name.localeCompare(b.name)).map((sec) => (
                         <div
                           key={sec.id}
                           style={{
@@ -1794,17 +1828,44 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               marginBottom: 8,
                             }}
                           >
-                            <span
-                              style={{
-                                flex: 1,
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: "#f1f5f9",
-                              }}
-                            >
-                              {sec.name}
-                            </span>
-                            {canEdit && (
+                            {canEdit && renamingRelSecId === sec.id ? (
+                              <>
+                                <input
+                                  autoFocus
+                                  value={relSecRenameValue}
+                                  onChange={(e) => setRelSecRenameValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleRenameRelatedSection(sec.id, relSecRenameValue);
+                                    if (e.key === "Escape") setRenamingRelSecId(null);
+                                  }}
+                                  style={{ flex: 1, fontSize: 13, fontWeight: 600, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 5, padding: "2px 7px", color: "#f1f5f9", outline: "none" }}
+                                />
+                                <ButtonIcon name="check" label="Save name" size="sm" onClick={() => handleRenameRelatedSection(sec.id, relSecRenameValue)} />
+                                <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setRenamingRelSecId(null)} />
+                              </>
+                            ) : (
+                              <>
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: "#f1f5f9",
+                                  }}
+                                >
+                                  {sec.name}
+                                </span>
+                                {canEdit && (
+                                  <ButtonIcon
+                                    name="edit"
+                                    label="Rename section"
+                                    size="sm"
+                                    onClick={() => { setRenamingRelSecId(sec.id); setRelSecRenameValue(sec.name); }}
+                                  />
+                                )}
+                              </>
+                            )}
+                            {canEdit && renamingRelSecId !== sec.id && (
                               <ButtonIcon
                                 name="trash"
                                 label="Delete section"
@@ -2442,10 +2503,41 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       })),
                   }}
                   value={fieldValues.targetTypeIds || []}
-                  onChange={(id, v) =>
-                    setFieldValues((p) => ({ ...p, [id]: v }))
-                  }
+                  onChange={async (id, v) => {
+                    setFieldValues((p) => ({ ...p, [id]: v, targetAliasIds: [] }));
+                    const typeIds: string[] = v || [];
+                    if (typeIds.length === 0) { setLookupTargetAliasOptions([]); return; }
+                    const results: EntryTypeAlias[] = [];
+                    await Promise.all(typeIds.map(async (tid) => {
+                      try {
+                        const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
+                        if (r.ok) results.push(...((await r.json()).aliases || []));
+                      } catch {}
+                    }));
+                    setLookupTargetAliasOptions(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+                  }}
                 />
+                {lookupTargetAliasOptions.length > 0 && (
+                  <DynamicInput
+                    input={{
+                      id: "targetAliasIds",
+                      label: "Restrict to subaliases (optional)",
+                      type: "badge-multiselect",
+                      tooltip: "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
+                      options: [
+                        { value: "__none__", label: "No subtypes", selectedColor: "#475569", fgColor: "#f1f5f9" },
+                        ...lookupTargetAliasOptions.map((a) => ({
+                          value: a.id,
+                          label: a.pluralName,
+                          selectedColor: a.bgColor || "#334155",
+                          fgColor: a.fgColor || "#f1f5f9",
+                        })),
+                      ],
+                    }}
+                    value={fieldValues.targetAliasIds || []}
+                    onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
+                )}
                 <div
                   style={{
                     display: "grid",
@@ -2664,6 +2756,28 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                         })}
                   </div>
                 </div>
+                {((editingField.config as any)?.targetAliasIds?.length ?? 0) > 0 && (
+                  <div>
+                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Restricted to Subaliases</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {((editingField.config as any).targetAliasIds as string[]).map((aid: string) => {
+                        if (aid === "__none__") {
+                          return (
+                            <span key={aid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: "#475569", color: "#f1f5f9" }}>
+                              No subtypes
+                            </span>
+                          );
+                        }
+                        const found = editingFieldTargetAliases.find((a) => a.id === aid);
+                        return (
+                          <span key={aid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: found?.bgColor || "#334155", color: found?.fgColor || "#f1f5f9" }}>
+                            {found?.pluralName || aid}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Allow multiple values:</span>
                   <span style={{ fontSize: 13, color: "#f1f5f9" }}>{(editingField.config as any)?.multiselect ? "Yes" : "No"}</span>
@@ -2761,30 +2875,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   setRelatedTypeId(e.target.value);
                   setRelatedFieldId("");
                   if (e.target.value) {
-                    const sectionsRes = await fetch(
-                      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${e.target.value}/sections`,
+                    const allFieldsRes = await fetch(
+                      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${e.target.value}/fields`,
                     );
                     const lookupFields: EntryField[] = [];
-                    if (sectionsRes.ok) {
-                      const { sections: secs } = await sectionsRes.json();
-                      for (const sec of secs) {
-                        if (sec.sectionType !== "fields") continue;
-                        const fr = await fetch(
-                          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${e.target.value}/sections/${sec.id}/fields`,
-                        );
-                        if (fr.ok) {
-                          const { fields: sFields } = await fr.json();
-                          lookupFields.push(
-                            ...sFields.filter(
-                              (f: any) =>
-                                f.fieldType === "lookup" &&
-                                (f.config?.targetEntryTypeIds || []).includes(
-                                  activeTypeId!,
-                                ),
+                    if (allFieldsRes.ok) {
+                      const { fields: allFields } = await allFieldsRes.json();
+                      lookupFields.push(
+                        ...allFields.filter(
+                          (f: any) =>
+                            f.fieldType === "lookup" &&
+                            (f.config?.targetEntryTypeIds || []).includes(
+                              activeTypeId!,
                             ),
-                          );
-                        }
-                      }
+                        ),
+                      );
                     }
                     setRelatedTypeFields(lookupFields);
                   } else setRelatedTypeFields([]);
