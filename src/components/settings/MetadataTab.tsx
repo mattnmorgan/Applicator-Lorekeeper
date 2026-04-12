@@ -1405,8 +1405,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     singularName: "",
                                     pluralName: "",
                                     blurb: "",
-                                    bgColor: "#1e293b",
-                                    fgColor: "#94a3b8",
+                                    bgColor: activeType?.bgColor || "#1e293b",
+                                    fgColor: activeType?.fgColor || "#94a3b8",
                                     visible: true,
                                   });
                                   setShowCreateAlias(true);
@@ -2372,8 +2372,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 </div>
                 <span
                   style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: 32,
                     fontSize: 12,
-                    padding: "3px 10px",
+                    padding: "0 10px",
                     borderRadius: 4,
                     background: aliasValues.bgColor,
                     color: aliasValues.fgColor,
