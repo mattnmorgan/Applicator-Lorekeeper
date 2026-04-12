@@ -45,6 +45,7 @@ interface EntryTypeAlias {
   bgColor?: string;
   fgColor?: string;
   visible?: boolean;
+  blurb?: string;
 }
 
 interface EntrySection {
@@ -140,6 +141,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [aliasValues, setAliasValues] = useState({
     singularName: "",
     pluralName: "",
+    blurb: "",
     bgColor: "#1e293b",
     fgColor: "#94a3b8",
     visible: true,
@@ -407,6 +409,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setAliasValues({
         singularName: "",
         pluralName: "",
+        blurb: "",
         bgColor: "#1e293b",
         fgColor: "#94a3b8",
         visible: true,
@@ -1400,6 +1403,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                   setAliasValues({
                                     singularName: "",
                                     pluralName: "",
+                                    blurb: "",
                                     bgColor: "#1e293b",
                                     fgColor: "#94a3b8",
                                     visible: true,
@@ -1468,6 +1472,27 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                   placeholder="Plural"
                                   style={{
                                     flex: 1,
+                                    minWidth: 0,
+                                    background: "#0f172a",
+                                    border: "1px solid #3b82f6",
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    color: "#f1f5f9",
+                                    fontSize: 12,
+                                    outline: "none",
+                                  }}
+                                />
+                                <input
+                                  value={editingAlias.blurb || ""}
+                                  onChange={(e) =>
+                                    setEditingAlias({
+                                      ...editingAlias,
+                                      blurb: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Summary…"
+                                  style={{
+                                    flex: 2,
                                     minWidth: 0,
                                     background: "#0f172a",
                                     border: "1px solid #3b82f6",
@@ -1556,6 +1581,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     handleUpdateAlias(alias, {
                                       singularName: editingAlias.singularName,
                                       pluralName: editingAlias.pluralName,
+                                      blurb: editingAlias.blurb,
                                       bgColor: editingAlias.bgColor,
                                       fgColor: editingAlias.fgColor,
                                       visible: editingAlias.visible,
@@ -1571,18 +1597,19 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               </div>
                             ) : (
                               <>
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    fontSize: 12,
-                                    color: "#e2e8f0",
-                                  }}
-                                >
-                                  {alias.pluralName}{" "}
-                                  <span style={{ color: "#64748b" }}>
-                                    / {alias.singularName}
-                                  </span>
-                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 12, color: "#e2e8f0" }}>
+                                    {alias.pluralName}{" "}
+                                    <span style={{ color: "#64748b" }}>
+                                      / {alias.singularName}
+                                    </span>
+                                  </div>
+                                  {alias.blurb && (
+                                    <div style={{ fontSize: 11, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {alias.blurb}
+                                    </div>
+                                  )}
+                                </div>
                                 {canEdit && (
                                   <>
                                     <span
@@ -2261,6 +2288,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 placeholder: "e.g. Humans",
               }}
               value={aliasValues.pluralName}
+              onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))}
+            />
+            <DynamicInput
+              input={{
+                id: "blurb",
+                label: "Summary",
+                type: "text",
+                placeholder: "Brief description of this alias…",
+              }}
+              value={aliasValues.blurb}
               onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))}
             />
             <DynamicInput
@@ -3197,17 +3234,18 @@ function PicklistOptionsEditor({
     let value = base;
     let n = 2;
     while (existing.has(value)) value = `${base}_${n++}`;
-    onChange([...values, { value, label: newLabel.trim() }]);
+    const sorted = [...values, { value, label: newLabel.trim() }]
+      .sort((a, b) => a.label.localeCompare(b.label));
+    onChange(sorted);
     setNewLabel("");
   };
 
   const saveEdit = (i: number) => {
     if (!editingLabel.trim()) return;
-    onChange(
-      values.map((o, j) =>
-        j === i ? { ...o, label: editingLabel.trim() } : o,
-      ),
-    );
+    const updated = values.map((o, j) =>
+      j === i ? { ...o, label: editingLabel.trim() } : o,
+    ).sort((a, b) => a.label.localeCompare(b.label));
+    onChange(updated);
     setEditingIdx(null);
   };
 

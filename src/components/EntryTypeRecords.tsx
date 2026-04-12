@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ButtonIcon, Icon, ConfirmModal, Spinner, Modal, Button, ImageUpload } from "@applicator/sdk/components";
+import { ButtonIcon, Icon, ConfirmModal, Spinner, Modal, Button, ImageUpload, SearchableCombobox } from "@applicator/sdk/components";
 
 interface EntryType {
   id: string;
@@ -11,6 +11,7 @@ interface EntryType {
   hasIcon: boolean;
   bgColor: string;
   fgColor: string;
+  blurb?: string;
 }
 
 interface EntryTypeAlias {
@@ -20,6 +21,7 @@ interface EntryTypeAlias {
   pluralName: string;
   bgColor?: string;
   fgColor?: string;
+  blurb?: string;
 }
 
 interface EntryRecord {
@@ -39,6 +41,7 @@ interface Props {
   canEdit: boolean;
   aliasId?: string;
   aliasName?: string;
+  aliasBlurb?: string;
   onSelectRecord: (recordId: string) => void;
   addToast: (message: string, type?: "success" | "error") => void;
 }
@@ -51,6 +54,7 @@ export default function EntryTypeRecords({
   canEdit,
   aliasId,
   aliasName,
+  aliasBlurb,
   onSelectRecord,
   addToast,
 }: Props) {
@@ -157,45 +161,52 @@ export default function EntryTypeRecords({
       {/* Header */}
       <div style={{
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        flexDirection: "column",
         padding: "12px 16px",
         borderBottom: "1px solid #1e293b",
         flexShrink: 0,
+        gap: 2,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {entryType && (
-            <span style={{ color: "#94a3b8", flexShrink: 0 }}>
-              {entryType.hasIcon ? (
-                <img
-                  src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`}
-                  style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", display: "block" }}
-                  alt=""
-                />
-              ) : (
-                <Icon name={(entryType.icon as any) || "file"} size={18} />
-              )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {entryType && (
+              <span style={{ color: "#94a3b8", flexShrink: 0 }}>
+                {entryType.hasIcon ? (
+                  <img
+                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`}
+                    style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", display: "block" }}
+                    alt=""
+                  />
+                ) : (
+                  <Icon name={(entryType.icon as any) || "file"} size={18} />
+                )}
+              </span>
+            )}
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
+              {aliasName || entryType?.pluralName || "Entries"}
             </span>
+            {aliasName && (
+              <span style={{ fontSize: 12, color: "#64748b", background: "#1e293b", padding: "1px 6px", borderRadius: 4 }}>
+                {entryType?.pluralName}
+              </span>
+            )}
+            <span style={{ fontSize: 12, color: "#64748b" }}>({filtered.length})</span>
+          </div>
+          {canEdit && (
+            <ButtonIcon
+              name="plus"
+              label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
+              onClick={() => {
+                setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
+                setShowCreate(true);
+              }}
+            />
           )}
-          <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
-            {aliasName || entryType?.pluralName || "Entries"}
-          </span>
-          {aliasName && (
-            <span style={{ fontSize: 12, color: "#64748b", background: "#1e293b", padding: "1px 6px", borderRadius: 4 }}>
-              {entryType?.pluralName}
-            </span>
-          )}
-          <span style={{ fontSize: 12, color: "#64748b" }}>({filtered.length})</span>
         </div>
-        {canEdit && (
-          <ButtonIcon
-            name="plus"
-            label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
-            onClick={() => {
-              setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
-              setShowCreate(true);
-            }}
-          />
+        {(aliasBlurb || (!aliasId && entryType?.blurb)) && (
+          <div style={{ fontSize: 12, color: "#64748b" }}>
+            {aliasBlurb || entryType?.blurb}
+          </div>
         )}
       </div>
 
@@ -365,14 +376,15 @@ export default function EntryTypeRecords({
             {!aliasId && aliases.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Subtype (optional)</div>
-                <select
-                  value={createValues.aliasId}
-                  onChange={(e) => setCreateValues((p) => ({ ...p, aliasId: e.target.value }))}
-                  style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none" }}
-                >
-                  <option value="">None</option>
-                  {aliases.map((a) => <option key={a.id} value={a.id}>{a.singularName}</option>)}
-                </select>
+                <SearchableCombobox<EntryTypeAlias>
+                  items={aliases}
+                  selectedItems={aliases.filter((a) => a.id === createValues.aliasId)}
+                  onSelectionChange={(items) => setCreateValues((p) => ({ ...p, aliasId: items[0]?.id || "" }))}
+                  getItemKey={(a) => a.id}
+                  renderItem={(a) => <span>{a.singularName}</span>}
+                  filterItem={(a, term) => a.singularName.toLowerCase().includes(term.toLowerCase())}
+                  placeholder="No subtype…"
+                />
               </div>
             )}
           </div>

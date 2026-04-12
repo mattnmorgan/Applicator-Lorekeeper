@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 1, "dev": 6 },
+  "version": { "major": 1, "minor": 1, "dev": 7 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -172,6 +172,11 @@
         {
           "name": "fgColor",
           "description": "Badge foreground/text hex color",
+          "type": "string"
+        },
+        {
+          "name": "blurb",
+          "description": "Optional short description for this alias",
           "type": "string"
         },
         {
@@ -753,6 +758,11 @@
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]",
       "method": "GET",
       "description": "Download an attachment"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]",
+      "method": "PATCH",
+      "description": "Rename an attachment"
     },
     {
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/records/[record-id]/attachments/[attachment-id]",

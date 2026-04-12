@@ -36,6 +36,41 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  context: ApiContext,
+  params: { lorebookId: string; typeId: string; recordId: string; attachmentId: string }
+) {
+  try {
+    const level = await getLorebookAccess(context, params.lorebookId);
+    if (!canEdit(level)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const body = await req.json();
+    const newFilename = body.filename?.trim();
+    if (!newFilename) return NextResponse.json({ error: "filename is required" }, { status: 400 });
+
+    const attachments = context.recordManager("lorekeeper", "entry_attachment");
+    const record = await attachments.readRecord(params.attachmentId);
+    if (!record || record.data.entryRecordId !== params.recordId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const oldPath = attachmentPath(params.recordId, params.attachmentId, record.data.filename);
+    const newPath = attachmentPath(params.recordId, params.attachmentId, newFilename);
+
+    if (record.data.filename !== newFilename) {
+      await context.appFileManager.rename(oldPath, newPath);
+    }
+
+    const table = await attachments.getTable();
+    const updated = await attachments.updateRecord(table, params.attachmentId, { filename: newFilename });
+
+    return NextResponse.json({ id: updated.id, ...updated.data });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   _req: NextRequest,
   context: ApiContext,

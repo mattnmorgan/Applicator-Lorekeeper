@@ -38,6 +38,7 @@ interface EntryTypeAlias {
   bgColor?: string;
   fgColor?: string;
   visible?: boolean;
+  blurb?: string;
 }
 
 interface Props {
@@ -195,6 +196,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 canEdit={canEdit}
                 aliasId={aliasId}
                 aliasName={currentAlias?.pluralName}
+                aliasBlurb={currentAlias?.blurb}
                 onSelectRecord={(rId) => handleSelectRecord(entryTypeId, rId)}
                 addToast={addToast}
               />

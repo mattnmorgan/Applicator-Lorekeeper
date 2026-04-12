@@ -148,6 +148,8 @@ export default function EntryRecordView({
   const [previewFile, setPreviewFile] = useState<Attachment | null>(null);
   const [uploading, setUploading] = useState(false);
   const [iconVersion, setIconVersion] = useState(0);
+  const [renamingAttachment, setRenamingAttachment] = useState<Attachment | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const baseUrl = `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${recordId}`;
@@ -185,11 +187,9 @@ export default function EntryRecordView({
 
       if (secRes.ok) {
         const { sections: secs } = await secRes.json();
-        const relSecs = (secs || [])
-          .filter((s: EntrySection) => s.sectionType === "related_list")
-          .sort((a: EntrySection, b: EntrySection) =>
-            a.name.localeCompare(b.name),
-          );
+        const relSecs = (secs || []).filter(
+          (s: EntrySection) => s.sectionType === "related_list",
+        );
         setRelatedSections(relSecs);
         const relMap: Record<string, RelatedListItem[]> = {};
         await Promise.all(
@@ -358,6 +358,28 @@ export default function EntryRecordView({
       addToast("Attachment deleted");
     } catch {
       addToast("Failed to delete attachment", "error");
+    }
+  };
+
+  const handleRenameAttachment = async () => {
+    if (!renamingAttachment || !renameValue.trim()) return;
+    try {
+      const res = await fetch(`${baseUrl}/attachments/${renamingAttachment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: renameValue.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAttachments((a) => a.map((x) => x.id === updated.id ? { ...x, filename: updated.filename } : x));
+        setRenamingAttachment(null);
+        setRenameValue("");
+        addToast("Attachment renamed");
+      } else {
+        addToast("Failed to rename attachment", "error");
+      }
+    } catch {
+      addToast("Failed to rename attachment", "error");
     }
   };
 
@@ -760,7 +782,7 @@ export default function EntryRecordView({
           >
             {record.hasIcon ? (
               <img
-                src={`${baseUrl}/icon${iconVersion > 0 ? `?v=${iconVersion}` : ""}`}
+                src={`${baseUrl}/icon${`?v=${iconVersion}`}`}
                 style={{ width: 28, height: 28, objectFit: "cover" }}
                 alt=""
               />
@@ -886,7 +908,7 @@ export default function EntryRecordView({
           >
             {record.hasIcon ? (
               <img
-                src={`${baseUrl}/icon${iconVersion > 0 ? `?v=${iconVersion}` : ""}`}
+                src={`${baseUrl}/icon${`?v=${iconVersion}`}`}
                 style={{ width: 64, height: 64, objectFit: "cover" }}
                 alt=""
               />
@@ -1163,7 +1185,16 @@ export default function EntryRecordView({
             >
               Related
             </div>
-            {relatedSections.map((sec) => {
+            {[...relatedSections].sort((a, b) => {
+              const aItem = (relatedBySec[a.id] || [])[0];
+              const bItem = (relatedBySec[b.id] || [])[0];
+              const aType = aItem?.entryTypeName || "";
+              const bType = bItem?.entryTypeName || "";
+              if (aType !== bType) return aType.localeCompare(bType);
+              const aField = aItem?.fieldName || "";
+              const bField = bItem?.fieldName || "";
+              return aField.localeCompare(bField);
+            }).map((sec) => {
               const records = relatedRecords[sec.id] || [];
 
               // Group records by their inverse relationship label (bToA)
@@ -1396,80 +1427,109 @@ export default function EntryRecordView({
           {attachments.length === 0 ? (
             <div style={{ color: "#64748b", fontSize: 13 }}>No attachments</div>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-                gap: 10,
-              }}
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {attachments.map((att) => (
-                <div
-                  key={att.id}
-                  style={{
-                    background: "#1e293b",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: 80,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: isPreviewSupported(att.filename)
-                        ? "pointer"
-                        : "default",
-                      background: "#0f172a",
-                    }}
-                    onClick={() =>
-                      isPreviewSupported(att.filename) && setPreviewFile(att)
-                    }
-                  >
-                    {att.hasThumb ? (
-                      <img
-                        src={`${baseUrl}/attachments/${att.id}/thumb`}
-                        style={{
-                          width: "100%",
-                          height: 80,
-                          objectFit: "cover",
+                <div key={att.id}>
+                  {renamingAttachment?.id === att.id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRenameAttachment();
+                          if (e.key === "Escape") { setRenamingAttachment(null); setRenameValue(""); }
                         }}
-                        alt=""
-                        loading="lazy"
+                        style={{
+                          flex: 1,
+                          background: "#1e293b",
+                          border: "1px solid #334155",
+                          borderRadius: 6,
+                          padding: "4px 8px",
+                          color: "#f1f5f9",
+                          fontSize: 13,
+                          outline: "none",
+                        }}
                       />
-                    ) : (
-                      <span style={{ color: "#64748b" }}>
-                        <Icon name="file" size={28} />
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ padding: "6px 8px" }}>
+                      <ButtonIcon name="check" label="Save rename" size="sm" onClick={handleRenameAttachment} />
+                      <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => { setRenamingAttachment(null); setRenameValue(""); }} />
+                    </div>
+                  ) : (
                     <div
                       style={{
-                        fontSize: 11,
-                        color: "#e2e8f0",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "5px 0",
+                        borderRadius: 6,
                       }}
                     >
-                      {att.filename}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>
-                      {(att.size / 1024).toFixed(1)} KB
-                    </div>
-                  </div>
-                  {canEdit && (
-                    <div style={{ position: "absolute", top: 4, right: 4 }}>
-                      <ButtonIcon
-                        name="trash"
-                        label="Delete"
-                        subvariant="danger"
-                        size="sm"
-                        onClick={() => handleDeleteAttachment(att)}
-                      />
+                      {/* Preview icon */}
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 4,
+                          overflow: "hidden",
+                          flexShrink: 0,
+                          background: "#1e293b",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: isPreviewSupported(att.filename) ? "pointer" : "default",
+                        }}
+                        onClick={() => isPreviewSupported(att.filename) && setPreviewFile(att)}
+                      >
+                        {att.hasThumb ? (
+                          <img
+                            src={`${baseUrl}/attachments/${att.id}/thumb`}
+                            style={{ width: 32, height: 32, objectFit: "cover" }}
+                            alt=""
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span style={{ color: "#64748b" }}>
+                            <Icon name="file" size={14} />
+                          </span>
+                        )}
+                      </div>
+                      {/* Name + size */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#e2e8f0",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            cursor: isPreviewSupported(att.filename) ? "pointer" : "default",
+                          }}
+                          onClick={() => isPreviewSupported(att.filename) && setPreviewFile(att)}
+                        >
+                          {att.filename}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          {(att.size / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      {/* Actions */}
+                      {canEdit && (
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          <ButtonIcon
+                            name="edit"
+                            label="Rename"
+                            size="sm"
+                            onClick={() => { setRenamingAttachment(att); setRenameValue(att.filename); }}
+                          />
+                          <ButtonIcon
+                            name="trash"
+                            label="Delete"
+                            subvariant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteAttachment(att)}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

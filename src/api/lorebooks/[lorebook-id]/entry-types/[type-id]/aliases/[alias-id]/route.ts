@@ -24,6 +24,7 @@ export async function PATCH(
     if (body.bgColor !== undefined) updates.bgColor = body.bgColor;
     if (body.fgColor !== undefined) updates.fgColor = body.fgColor;
     if (body.visible !== undefined) updates.visible = body.visible;
+    if (body.blurb !== undefined) updates.blurb = body.blurb;
 
     const table = await aliases.getTable();
     const updated = await aliases.updateRecord(table, params.aliasId, updates);

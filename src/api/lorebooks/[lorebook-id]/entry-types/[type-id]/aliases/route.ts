@@ -116,6 +116,7 @@ export async function POST(
       bgColor: body.bgColor || "#1e293b",
       fgColor: body.fgColor || "#94a3b8",
       visible: body.visible !== false,
+      blurb: body.blurb || "",
     });
 
     return NextResponse.json({ id: record.id, ...record.data }, { status: 201 });
