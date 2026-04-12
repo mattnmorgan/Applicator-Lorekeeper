@@ -1436,6 +1436,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               <div
                                 style={{
                                   flex: 1,
+                                  minWidth: 0,
                                   display: "flex",
                                   gap: 6,
                                   alignItems: "center",
