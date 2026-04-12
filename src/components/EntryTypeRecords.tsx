@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ButtonIcon, Icon, ConfirmModal, Spinner, Modal, Button, ImageUpload, SearchableCombobox } from "@applicator/sdk/components";
+import { ButtonIcon, Icon, ConfirmModal, Spinner } from "@applicator/sdk/components";
+import CreateEntryModal from "./CreateEntryModal";
 
 interface EntryType {
   id: string;
@@ -63,8 +64,6 @@ export default function EntryTypeRecords({
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<EntryRecord | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createValues, setCreateValues] = useState({ name: "", blurb: "", aliasId: "", iconData: "" });
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const aliases = aliasesByTypeId[entryTypeId] || [];
@@ -95,42 +94,6 @@ export default function EntryTypeRecords({
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleCreate = async () => {
-    if (!createValues.name.trim()) return;
-    setCreating(true);
-    try {
-      const effectiveAliasId = aliasId || createValues.aliasId || "";
-      const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: createValues.name.trim(),
-          blurb: createValues.blurb || "",
-          ...(effectiveAliasId ? { aliasId: effectiveAliasId } : {}),
-        }),
-      });
-      if (res.ok) {
-        const record = await res.json();
-        if (createValues.iconData) {
-          await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${record.id}/icon`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ iconData: createValues.iconData }),
-          });
-        }
-        setShowCreate(false);
-        setCreateValues({ name: "", blurb: "", aliasId: "", iconData: "" });
-        addToast(`${entryType?.singularName || "Entry"} created`);
-        onSelectRecord(record.id);
-      } else {
-        addToast("Failed to create entry", "error");
-      }
-    } catch {
-      addToast("Failed to create entry", "error");
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const handleDelete = async (record: EntryRecord) => {
     try {
@@ -204,10 +167,7 @@ export default function EntryTypeRecords({
           <ButtonIcon
             name="plus"
             label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
-            onClick={() => {
-              setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
-              setShowCreate(true);
-            }}
+            onClick={() => setShowCreate(true)}
           />
         )}
       </div>
@@ -328,69 +288,19 @@ export default function EntryTypeRecords({
 
       {/* Create modal */}
       {showCreate && (
-        <Modal
-          header={<span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>New {entryType?.singularName || "Entry"}</span>}
-          closeable
+        <CreateEntryModal
+          lorebookId={lorebookId}
+          entryTypeId={entryTypeId}
+          entryTypes={entryTypes}
+          fixedAliasId={aliasId}
+          addToast={addToast}
+          onCreated={(record) => {
+            setShowCreate(false);
+            addToast(`${entryType?.singularName || "Entry"} created`);
+            onSelectRecord(record.id);
+          }}
           onClose={() => setShowCreate(false)}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
-              <Button variant="primary" onClick={handleCreate} disabled={creating || !createValues.name.trim()}>
-                {creating ? "Creating…" : "Create"}
-              </Button>
-            </>
-          }
-          maxWidth={460}
-        >
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", gap: 12 }}>
-              <ImageUpload
-                label="Icon (optional)"
-                value={createValues.iconData || null}
-                onChange={(v) => setCreateValues((p) => ({ ...p, iconData: v || "" }))}
-                previewSize={64}
-                previewRadius={8}
-              />
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Name <span style={{ color: "#ef4444" }}>*</span></div>
-                  <input
-                    autoFocus
-                    value={createValues.name}
-                    onChange={(e) => setCreateValues((p) => ({ ...p, name: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-                    placeholder={`${entryType?.singularName || "Entry"} name…`}
-                    style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Summary</div>
-                  <input
-                    value={createValues.blurb}
-                    onChange={(e) => setCreateValues((p) => ({ ...p, blurb: e.target.value }))}
-                    placeholder="Brief description…"
-                    style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "6px 10px", color: "#f1f5f9", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                  />
-                </div>
-              </div>
-            </div>
-            {/* Subtype selector — only show if no aliasId context and aliases exist */}
-            {!aliasId && aliases.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Subtype (optional)</div>
-                <SearchableCombobox<EntryTypeAlias>
-                  items={aliases}
-                  selectedItems={aliases.filter((a) => a.id === createValues.aliasId)}
-                  onSelectionChange={(items) => setCreateValues((p) => ({ ...p, aliasId: items[0]?.id || "" }))}
-                  getItemKey={(a) => a.id}
-                  renderItem={(a) => <span>{a.singularName}</span>}
-                  filterItem={(a, term) => a.singularName.toLowerCase().includes(term.toLowerCase())}
-                  placeholder="No subtype…"
-                />
-              </div>
-            )}
-          </div>
-        </Modal>
+        />
       )}
 
       {deleteTarget && (

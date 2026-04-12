@@ -569,6 +569,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       // lookup
       aToB: cfg.aToB || "",
       bToA: cfg.bToA || "",
+      targetTypeIds: (cfg.targetEntryTypeIds || []) as string[],
+      targetAliasIds: (cfg.targetAliasIds || []) as string[],
     });
     if (field.fieldType === "lookup") {
       const targetTypeIds: string[] = (field.config as any)?.targetEntryTypeIds || [];
@@ -628,6 +630,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         ...(editingField.config || {}),
         aToB: editFieldValues.aToB || "",
         bToA: editFieldValues.bToA || "",
+        targetEntryTypeIds: editFieldValues.targetTypeIds || [],
+        targetAliasIds: editFieldValues.targetAliasIds || [],
       };
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields/${editingField.id}`,
@@ -2865,40 +2869,56 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
                   />
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Target Entry Types</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {((editingField.config as any)?.targetEntryTypeIds || []).length === 0
-                      ? <span style={{ fontSize: 12, color: "#475569" }}>Any</span>
-                      : ((editingField.config as any)?.targetEntryTypeIds || []).map((tid: string) => {
-                          const t = entryTypes.find((e) => e.id === tid);
-                          return t ? (
-                            <span key={tid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: t.bgColor || "#334155", color: t.fgColor || "#f1f5f9" }}>{t.pluralName}</span>
-                          ) : null;
-                        })}
-                  </div>
-                </div>
-                {((editingField.config as any)?.targetAliasIds?.length ?? 0) > 0 && (
-                  <div>
-                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Restricted to Subaliases</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {((editingField.config as any).targetAliasIds as string[]).map((aid: string) => {
-                        if (aid === "__none__") {
-                          return (
-                            <span key={aid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: "#475569", color: "#f1f5f9" }}>
-                              No subtypes
-                            </span>
-                          );
-                        }
-                        const found = editingFieldTargetAliases.find((a) => a.id === aid);
-                        return (
-                          <span key={aid} style={{ padding: "2px 8px", borderRadius: 999, fontSize: 12, background: found?.bgColor || "#334155", color: found?.fgColor || "#f1f5f9" }}>
-                            {found?.pluralName || aid}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
+                <DynamicInput
+                  input={{
+                    id: "targetTypeIds",
+                    label: "Target Entry Types",
+                    type: "badge-multiselect",
+                    tooltip: "Leave empty to allow any entry type.",
+                    options: [...entryTypes]
+                      .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                      .map((t) => ({
+                        value: t.id,
+                        label: t.pluralName,
+                        selectedColor: t.bgColor || "#334155",
+                        fgColor: t.fgColor || "#fff",
+                      })),
+                  }}
+                  value={editFieldValues.targetTypeIds || []}
+                  onChange={async (id, v) => {
+                    setEditFieldValues((p) => ({ ...p, [id]: v, targetAliasIds: [] }));
+                    const typeIds: string[] = v || [];
+                    if (typeIds.length === 0) { setEditingFieldTargetAliases([]); return; }
+                    const results: EntryTypeAlias[] = [];
+                    await Promise.all(typeIds.map(async (tid) => {
+                      try {
+                        const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
+                        if (r.ok) results.push(...((await r.json()).aliases || []));
+                      } catch {}
+                    }));
+                    setEditingFieldTargetAliases(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+                  }}
+                />
+                {editingFieldTargetAliases.length > 0 && (
+                  <DynamicInput
+                    input={{
+                      id: "targetAliasIds",
+                      label: "Restrict to subaliases (optional)",
+                      type: "badge-multiselect",
+                      tooltip: "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
+                      options: [
+                        { value: "__none__", label: "No subtypes", selectedColor: "#475569", fgColor: "#f1f5f9" },
+                        ...editingFieldTargetAliases.map((a) => ({
+                          value: a.id,
+                          label: a.pluralName,
+                          selectedColor: a.bgColor || "#334155",
+                          fgColor: a.fgColor || "#f1f5f9",
+                        })),
+                      ],
+                    }}
+                    value={editFieldValues.targetAliasIds || []}
+                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  />
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Allow multiple values:</span>

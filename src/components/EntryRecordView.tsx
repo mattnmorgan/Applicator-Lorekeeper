@@ -15,6 +15,7 @@ import {
   InfoTooltip,
   SearchableCombobox,
 } from "@applicator/sdk/components";
+import CreateEntryModal from "./CreateEntryModal";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -134,6 +135,8 @@ export default function EntryRecordView({
     Record<string, RelatedListItem[]>
   >({});
   const [lookups, setLookups] = useState<RecordLookup[]>([]);
+  const [pendingLookupAdds, setPendingLookupAdds] = useState<RecordLookup[]>([]);
+  const [pendingLookupRemoveIds, setPendingLookupRemoveIds] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [relatedRecords, setRelatedRecords] = useState<Record<string, any[]>>(
     {},
@@ -267,17 +270,21 @@ export default function EntryRecordView({
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
+  const effectiveLookups = [
+    ...lookups.filter((lk) => !pendingLookupRemoveIds.includes(lk.id)),
+    ...pendingLookupAdds,
+  ];
+
   const handleSave = async () => {
     if (!record) return;
-    // Validate required fields
+    // Validate required fields against the effective (staged) lookup state
     const activeAliasId = editValues.aliasId || "";
     const missingRequired = fields.filter((f) => {
       if (!f.required) return false;
-      // Skip fields that are restricted to aliases the current record doesn't have
       if (f.aliasIds && f.aliasIds.length > 0 && !f.aliasIds.includes(activeAliasId)) return false;
       if (f.fieldType === "lookup") {
         return (
-          lookups.filter(
+          effectiveLookups.filter(
             (lk) => lk.customFieldId === f.id && lk.record1 === recordId,
           ).length === 0
         );
@@ -306,12 +313,42 @@ export default function EntryRecordView({
           aliasId: editValues.aliasId ?? "",
         }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setRecord(updated);
-        setEditing(false);
-        addToast("Saved");
-      } else addToast("Failed to save", "error");
+      if (!res.ok) { addToast("Failed to save", "error"); return; }
+      const updated = await res.json();
+
+      // Commit staged lookup removals
+      await Promise.all(
+        pendingLookupRemoveIds.map((id) =>
+          fetch(`${baseUrl}/lookups/${id}`, { method: "DELETE" }),
+        ),
+      );
+      // Commit staged lookup additions
+      const addResults: RecordLookup[] = [];
+      for (const lk of pendingLookupAdds) {
+        const r = await fetch(`${baseUrl}/lookups`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customFieldId: lk.customFieldId,
+            record2: lk.record2,
+            aToB: lk.aToB,
+            bToA: lk.bToA,
+          }),
+        });
+        if (r.ok) addResults.push({ ...(await r.json()), record2Name: lk.record2Name, record2TypeId: lk.record2TypeId, record2HasIcon: lk.record2HasIcon, record1Name: "", record1TypeId: "", record1HasIcon: false });
+      }
+
+      // Settle the lookups state to reflect committed changes
+      setLookups((prev) => [
+        ...prev.filter((lk) => !pendingLookupRemoveIds.includes(lk.id)),
+        ...addResults,
+      ]);
+      setPendingLookupAdds([]);
+      setPendingLookupRemoveIds([]);
+
+      setRecord(updated);
+      setEditing(false);
+      addToast("Saved");
     } catch {
       addToast("Failed to save", "error");
     } finally {
@@ -677,10 +714,17 @@ export default function EntryRecordView({
           lorebookId={lorebookId}
           recordId={recordId}
           entryTypes={entryTypes}
-          baseUrl={baseUrl}
-          lookups={lookups}
-          onAdded={(lk) => setLookups((l) => [...l, lk])}
-          onRemoved={(id) => setLookups((l) => l.filter((x) => x.id !== id))}
+          lookups={effectiveLookups}
+          addToast={addToast}
+          onAdded={(lk) => setPendingLookupAdds((p) => [...p, lk])}
+          onRemoved={(id) => {
+            // If it's a pending (unsaved) add, just drop it from pending adds
+            if (pendingLookupAdds.some((lk) => lk.id === id)) {
+              setPendingLookupAdds((p) => p.filter((lk) => lk.id !== id));
+            } else {
+              setPendingLookupRemoveIds((p) => [...p, id]);
+            }
+          }}
         />
       );
     }
@@ -833,6 +877,8 @@ export default function EntryRecordView({
                     aliasId: record.aliasId || "",
                     fieldData: { ...(record.fieldData || {}) },
                   });
+                  setPendingLookupAdds([]);
+                  setPendingLookupRemoveIds([]);
                 }}
               />
             </>
@@ -1514,23 +1560,36 @@ export default function EntryRecordView({
                         </div>
                       </div>
                       {/* Actions */}
-                      {canEdit && (
-                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                          <ButtonIcon
-                            name="edit"
-                            label="Rename"
-                            size="sm"
-                            onClick={() => { setRenamingAttachment(att); setRenameValue(att.filename); }}
-                          />
-                          <ButtonIcon
-                            name="trash"
-                            label="Delete"
-                            subvariant="danger"
-                            size="sm"
-                            onClick={() => handleDeleteAttachment(att)}
-                          />
-                        </div>
-                      )}
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <ButtonIcon
+                          name="download"
+                          label="Download"
+                          size="sm"
+                          onClick={() => {
+                            const a = document.createElement("a");
+                            a.href = `${baseUrl}/attachments/${att.id}`;
+                            a.download = att.filename;
+                            a.click();
+                          }}
+                        />
+                        {canEdit && (
+                          <>
+                            <ButtonIcon
+                              name="edit"
+                              label="Rename"
+                              size="sm"
+                              onClick={() => { setRenamingAttachment(att); setRenameValue(att.filename); }}
+                            />
+                            <ButtonIcon
+                              name="trash"
+                              label="Delete"
+                              subvariant="danger"
+                              size="sm"
+                              onClick={() => handleDeleteAttachment(att)}
+                            />
+                          </>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1598,19 +1657,19 @@ function LookupFieldEditor({
   lorebookId,
   recordId,
   entryTypes,
-  baseUrl,
   lookups,
   onAdded,
   onRemoved,
+  addToast,
 }: {
   field: EntryField;
   lorebookId: string;
   recordId: string;
   entryTypes: EntryType[];
-  baseUrl: string;
   lookups: RecordLookup[];
   onAdded: (lk: RecordLookup) => void;
   onRemoved: (id: string) => void;
+  addToast: (message: string, type?: "success" | "error") => void;
 }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
@@ -1618,6 +1677,8 @@ function LookupFieldEditor({
   const [targetAliasMap, setTargetAliasMap] = useState<
     Record<string, { singularName: string; bgColor?: string; fgColor?: string }>
   >({});
+  const [createTypeId, setCreateTypeId] = useState<string | null>(null);
+
   const targetIds: string[] = field.config?.targetEntryTypeIds || [];
   const fieldLookups = lookups.filter(
     (lk) => lk.customFieldId === field.id && lk.record1 === recordId,
@@ -1629,10 +1690,7 @@ function LookupFieldEditor({
   useEffect(() => {
     if (targetIds.length === 0) return;
     const fetchAliases = async () => {
-      const map: Record<
-        string,
-        { singularName: string; bgColor?: string; fgColor?: string }
-      > = {};
+      const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
       await Promise.all(
         targetIds.map(async (typeId) => {
           try {
@@ -1642,11 +1700,7 @@ function LookupFieldEditor({
             if (res.ok) {
               const data = await res.json();
               for (const a of data.aliases || []) {
-                map[a.id] = {
-                  singularName: a.singularName,
-                  bgColor: a.bgColor,
-                  fgColor: a.fgColor,
-                };
+                map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
               }
             }
           } catch {}
@@ -1658,79 +1712,92 @@ function LookupFieldEditor({
   }, [lorebookId, targetIds.join(",")]);
 
   useEffect(() => {
-    if (!search.trim()) {
-      setResults([]);
-      return;
-    }
+    if (!search.trim()) { setResults([]); return; }
     const controller = new AbortController();
+    const targetAliasIds: string[] = Array.isArray(field.config?.targetAliasIds)
+      ? field.config.targetAliasIds
+      : [];
+    const namedAliasIds = targetAliasIds.filter((id) => id !== "__none__");
     const t = setTimeout(async () => {
+      const seen = new Set<string>();
       const all: any[] = [];
       for (const typeId of targetIds) {
         try {
-          const res = await fetch(
-            `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/records?search=${encodeURIComponent(search)}`,
-            { signal: controller.signal },
-          );
-          if (res.ok) {
+          const et = entryTypes.find((t) => t.id === typeId);
+          // Build the list of aliasId values to query. Use server-side filtering
+          // when the field restricts to specific aliases (avoids stale-closure issues).
+          const aliasQueries: Array<string | null> =
+            targetAliasIds.length === 0
+              ? [null] // no restriction — one unfiltered call
+              : [
+                  ...namedAliasIds, // one call per named alias
+                  "__none__",       // always include records with no alias assigned
+                ];
+          for (const aliasQuery of aliasQueries) {
+            const qs = new URLSearchParams({ search });
+            if (aliasQuery && aliasQuery !== "__none__") qs.set("aliasId", aliasQuery);
+            const res = await fetch(
+              `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/records?${qs}`,
+              { signal: controller.signal },
+            );
+            if (!res.ok) continue;
             const data = await res.json();
-            const et = entryTypes.find((t) => t.id === typeId);
-            const targetAliasIds: string[] = field.config?.targetAliasIds || [];
-            (data.records || []).forEach((r: any) => {
-              if (!existingIds.has(r.id) && r.id !== recordId) {
-                if (targetAliasIds.length > 0) {
-                  const rAliasId = r.aliasId || "";
-                  const passes =
-                    targetAliasIds.includes(rAliasId) ||
-                    (rAliasId === "" && targetAliasIds.includes("__none__"));
-                  if (!passes) return;
-                }
-                all.push({ ...r, entryTypeId: typeId, entryType: et });
-              }
-            });
+            for (const r of data.records || []) {
+              if (seen.has(r.id) || existingIds.has(r.id) || r.id === recordId) continue;
+              // For the __none__ batch, only include records that truly have no alias
+              if (aliasQuery === "__none__" && r.aliasId) continue;
+              seen.add(r.id);
+              all.push({ ...r, entryTypeId: typeId, entryType: et });
+            }
           }
         } catch {}
       }
       setResults(all.sort((a: any, b: any) => a.name.localeCompare(b.name)));
     }, 200);
-    return () => {
-      clearTimeout(t);
-      controller.abort();
-    };
+    return () => { clearTimeout(t); controller.abort(); };
   }, [search, lorebookId, fieldLookups.length]);
 
-  const handleAdd = async (target: any) => {
-    const res = await fetch(`${baseUrl}/lookups`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customFieldId: field.id,
-        record2: target.id,
-        aToB: field.config?.aToB || "",
-        bToA: field.config?.bToA || "",
-      }),
+  const handleAdd = (target: any) => {
+    onAdded({
+      id: `pending-${Date.now()}-${Math.random()}`,
+      customFieldId: field.id,
+      record1: recordId,
+      record2: target.id,
+      aToB: field.config?.aToB || "",
+      bToA: field.config?.bToA || "",
+      record1Name: "",
+      record2Name: target.name,
+      record1TypeId: "",
+      record2TypeId: target.entryTypeId,
+      record1HasIcon: false,
+      record2HasIcon: !!target.hasIcon,
     });
-    if (res.ok) {
-      const lk = await res.json();
-      onAdded({
-        ...lk,
-        record1Name: "",
-        record2Name: target.name,
-        record1TypeId: "",
-        record2TypeId: target.entryTypeId,
-        record1HasIcon: false,
-        record2HasIcon: !!target.hasIcon,
-      });
-      setSearch("");
-      setResults([]);
-      setOpen(false);
-    }
+    setSearch(""); setResults([]); setOpen(false);
   };
 
   const handleRemove = (lkId: string) => {
-    fetch(`${baseUrl}/lookups/${lkId}`, { method: "DELETE" }).then(() =>
-      onRemoved(lkId),
-    );
+    onRemoved(lkId);
   };
+
+  const handleCreated = (record: { id: string; name: string; hasIcon: boolean; entryTypeId: string }) => {
+    onAdded({
+      id: `pending-${Date.now()}-${Math.random()}`,
+      customFieldId: field.id,
+      record1: recordId,
+      record2: record.id,
+      aToB: field.config?.aToB || "",
+      bToA: field.config?.bToA || "",
+      record1Name: "",
+      record2Name: record.name,
+      record1TypeId: "",
+      record2TypeId: record.entryTypeId,
+      record1HasIcon: false,
+      record2HasIcon: record.hasIcon,
+    });
+    setSearch(""); setResults([]);
+  };
+
+  const showDropdown = open && (results.length > 0 || targetIds.length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1743,55 +1810,23 @@ function LookupFieldEditor({
         return (
           <div
             key={lk.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#1e293b",
-              borderRadius: 6,
-              padding: "4px 8px",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e293b", borderRadius: 6, padding: "4px 8px" }}
           >
             {otherHasIcon && otherTypeId ? (
               <img
                 src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${otherTypeId}/records/${otherId}/icon`}
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 3,
-                  objectFit: "cover",
-                  flexShrink: 0,
-                }}
+                style={{ width: 20, height: 20, borderRadius: 3, objectFit: "cover", flexShrink: 0 }}
                 alt=""
               />
             ) : et ? (
               <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 3,
-                  background: et.bgColor || "#334155",
-                  color: et.fgColor || "#fff",
-                  fontSize: 9,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  fontWeight: 600,
-                }}
+                style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}
               >
                 {et.singularName[0]}
               </span>
             ) : null}
-            <span style={{ fontSize: 13, color: "#e2e8f0", flex: 1 }}>
-              {otherName}
-            </span>
-            <ButtonIcon
-              name="close"
-              label="Remove"
-              size="sm"
-              onClick={() => handleRemove(lk.id)}
-            />
+            <span style={{ fontSize: 13, color: "#e2e8f0", flex: 1 }}>{otherName}</span>
+            <ButtonIcon name="close" label="Remove" size="sm" onClick={() => handleRemove(lk.id)} />
           </div>
         );
       })}
@@ -1799,40 +1834,15 @@ function LookupFieldEditor({
         <div style={{ position: "relative" }}>
           <input
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOpen(true);
-            }}
+            onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             placeholder="Search entries to link…"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              background: "#0f172a",
-              border: "1px solid #334155",
-              borderRadius: 6,
-              padding: "5px 8px",
-              color: "#f1f5f9",
-              fontSize: 13,
-              outline: "none",
-            }}
+            style={{ width: "100%", boxSizing: "border-box", background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "5px 8px", color: "#f1f5f9", fontSize: 13, outline: "none" }}
           />
-          {open && results.length > 0 && (
+          {showDropdown && (
             <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                background: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: 6,
-                maxHeight: 200,
-                overflowY: "auto",
-                marginTop: 2,
-              }}
+              style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#1e293b", border: "1px solid #334155", borderRadius: 6, maxHeight: 220, overflowY: "auto", marginTop: 2 }}
             >
               {results.map((r) => {
                 const et = r.entryType as EntryType | undefined;
@@ -1840,87 +1850,68 @@ function LookupFieldEditor({
                   <div
                     key={r.id}
                     onMouseDown={() => handleAdd(r)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 8px",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#0f172a")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#0f172a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     {r.hasIcon ? (
                       <img
                         src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${r.entryTypeId}/records/${r.id}/icon`}
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 3,
-                          objectFit: "cover",
-                          flexShrink: 0,
-                        }}
+                        style={{ width: 20, height: 20, borderRadius: 3, objectFit: "cover", flexShrink: 0 }}
                         alt=""
                       />
                     ) : et ? (
-                      <span
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 3,
-                          background: et.bgColor || "#334155",
-                          color: et.fgColor || "#fff",
-                          fontSize: 9,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                          fontWeight: 600,
-                        }}
-                      >
+                      <span style={{ width: 20, height: 20, borderRadius: 3, background: et.bgColor || "#334155", color: et.fgColor || "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>
                         {et.singularName[0]}
                       </span>
                     ) : null}
-                    <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>
-                      {r.name}
-                    </span>
+                    <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
                     {(() => {
-                      const alias = r.aliasId
-                        ? targetAliasMap[r.aliasId]
-                        : undefined;
-                      const label = alias
-                        ? alias.singularName
-                        : et?.singularName;
-                      const bg = alias
-                        ? alias.bgColor || "#334155"
-                        : et?.bgColor || "#334155";
-                      const fg = alias
-                        ? alias.fgColor || "#fff"
-                        : et?.fgColor || "#fff";
+                      const alias = r.aliasId ? targetAliasMap[r.aliasId] : undefined;
+                      const label = alias ? alias.singularName : et?.singularName;
+                      const bg = alias ? alias.bgColor || "#334155" : et?.bgColor || "#334155";
+                      const fg = alias ? alias.fgColor || "#fff" : et?.fgColor || "#fff";
                       return label ? (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: "1px 5px",
-                            borderRadius: 3,
-                            background: bg,
-                            color: fg,
-                          }}
-                        >
-                          {label}
-                        </span>
+                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: bg, color: fg }}>{label}</span>
                       ) : null;
                     })()}
+                  </div>
+                );
+              })}
+              {results.length > 0 && (
+                <div style={{ borderTop: "1px solid #334155", margin: "2px 0" }} />
+              )}
+              {targetIds.map((typeId) => {
+                const et = entryTypes.find((t) => t.id === typeId);
+                if (!et) return null;
+                return (
+                  <div
+                    key={`create-${typeId}`}
+                    onMouseDown={() => { setCreateTypeId(typeId); setOpen(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", color: "#94a3b8", fontSize: 13 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#0f172a"; e.currentTarget.style.color = "#f1f5f9"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}><Icon name="plus" size={14} /></span>
+                    <span>Create new {et.singularName}</span>
                   </div>
                 );
               })}
             </div>
           )}
         </div>
+      )}
+      {createTypeId && (
+        <CreateEntryModal
+          lorebookId={lorebookId}
+          entryTypeId={createTypeId}
+          entryTypes={entryTypes}
+          allowedAliasIds={field.config?.targetAliasIds || []}
+          initialName={search.trim()}
+          addToast={addToast}
+          onCreated={handleCreated}
+          onClose={() => setCreateTypeId(null)}
+        />
       )}
     </div>
   );
