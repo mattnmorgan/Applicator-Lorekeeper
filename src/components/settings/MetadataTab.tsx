@@ -11,6 +11,7 @@ import {
   Spinner,
   ImageUpload,
   FormEditor,
+  InfoTooltip,
 } from "@applicator/sdk/components";
 import type {
   FormLayout,
@@ -32,6 +33,7 @@ interface EntryType {
   bgColor: string;
   fgColor: string;
   sortOrder: number;
+  isGroup?: boolean;
   formLayout?: FormLayout | null;
 }
 
@@ -42,6 +44,7 @@ interface EntryTypeAlias {
   pluralName: string;
   bgColor?: string;
   fgColor?: string;
+  visible?: boolean;
 }
 
 interface EntrySection {
@@ -139,6 +142,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     pluralName: "",
     bgColor: "#1e293b",
     fgColor: "#94a3b8",
+    visible: true,
   });
   const [editingAlias, setEditingAlias] = useState<EntryTypeAlias | null>(null);
 
@@ -405,6 +409,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         pluralName: "",
         bgColor: "#1e293b",
         fgColor: "#94a3b8",
+        visible: true,
       });
       setShowCreateAlias(false);
       addToast("Alias created");
@@ -445,6 +450,22 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setAliases((prev) => prev.filter((a) => a.id !== aliasId));
       addToast("Alias deleted");
     } else addToast("Failed to delete alias", "error");
+  };
+
+  const handleToggleAllAliasVisibility = async () => {
+    if (!activeTypeId || aliases.length === 0) return;
+    const targetVisible = !aliases.some((a) => a.visible !== false);
+    // Optimistic update
+    setAliases((prev) => prev.map((a) => ({ ...a, visible: targetVisible })));
+    const res = await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/aliases`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: aliases.map((a) => a.id), visible: targetVisible }),
+      },
+    );
+    if (!res.ok) addToast("Failed to update aliases", "error");
   };
 
   // ── Field CRUD ──────────────────────────────────────────────────────────────
@@ -1165,8 +1186,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           <div
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "1fr 1fr",
+                              gridTemplateColumns: "1fr 1fr auto",
                               gap: 10,
+                              alignItems: "start",
                             }}
                           >
                             <InlineEdit
@@ -1181,6 +1203,17 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               value={activeType.pluralName}
                               onSave={(v) => handleUpdateType("pluralName", v)}
                             />
+                            <div>
+                              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                Group
+                                <InfoTooltip text="Group types are not selectable in the navigation menu. Use them to organise child entry types hierarchically." />
+                              </div>
+                              <DynamicInput
+                                input={{ id: "isGroup", label: "", type: "toggle" }}
+                                value={!!activeType.isGroup}
+                                onChange={(_, v) => handleUpdateType("isGroup", v)}
+                              />
+                            </div>
                           </div>
                           {/* Summary */}
                           <InlineEdit
@@ -1350,20 +1383,31 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             </span>
                           </div>
                           {canEdit && (
-                            <ButtonIcon
-                              name="plus"
-                              label="Add alias"
-                              size="sm"
-                              onClick={() => {
-                                setAliasValues({
-                                  singularName: "",
-                                  pluralName: "",
-                                  bgColor: "#1e293b",
-                                  fgColor: "#94a3b8",
-                                });
-                                setShowCreateAlias(true);
-                              }}
-                            />
+                            <div style={{ display: "flex", gap: 4 }}>
+                              {aliases.length > 0 && (
+                                <ButtonIcon
+                                  name={aliases.some((a) => a.visible !== false) ? "eye-off" : "eye"}
+                                  label={aliases.some((a) => a.visible !== false) ? "Make all invisible" : "Make all visible"}
+                                  size="sm"
+                                  onClick={handleToggleAllAliasVisibility}
+                                />
+                              )}
+                              <ButtonIcon
+                                name="plus"
+                                label="Add alias"
+                                size="sm"
+                                onClick={() => {
+                                  setAliasValues({
+                                    singularName: "",
+                                    pluralName: "",
+                                    bgColor: "#1e293b",
+                                    fgColor: "#94a3b8",
+                                    visible: true,
+                                  });
+                                  setShowCreateAlias(true);
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
                         {aliases.length === 0 && (
@@ -1494,6 +1538,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     })
                                   }
                                 />
+                                <DynamicInput
+                                  input={{ id: "visible", label: "Visible", type: "toggle" }}
+                                  value={editingAlias.visible !== false}
+                                  onChange={(_, v) =>
+                                    setEditingAlias({
+                                      ...editingAlias,
+                                      visible: v,
+                                    })
+                                  }
+                                />
                                 <ButtonIcon
                                   name="check"
                                   label="Save"
@@ -1504,6 +1558,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                       pluralName: editingAlias.pluralName,
                                       bgColor: editingAlias.bgColor,
                                       fgColor: editingAlias.fgColor,
+                                      visible: editingAlias.visible,
                                     })
                                   }
                                 />
@@ -1548,6 +1603,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     >
                                       {alias.singularName}
                                     </span>
+                                    <ButtonIcon
+                                      name={alias.visible === false ? "eye-off" : "eye"}
+                                      label={alias.visible === false ? "Make visible" : "Make invisible"}
+                                      size="sm"
+                                      onClick={() =>
+                                        handleUpdateAlias(alias, { visible: alias.visible === false })
+                                      }
+                                    />
                                     <ButtonIcon
                                       name="edit"
                                       label="Edit alias"
@@ -2199,6 +2262,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               }}
               value={aliasValues.pluralName}
               onChange={(id, v) => setAliasValues((p) => ({ ...p, [id]: v }))}
+            />
+            <DynamicInput
+              input={{
+                id: "visible",
+                label: "Visible",
+                type: "toggle",
+                tooltip: "When off, this alias will not appear in the entry type navigation menu.",
+              }}
+              value={aliasValues.visible}
+              onChange={(_, v) => setAliasValues((p) => ({ ...p, visible: v }))}
             />
             <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
               <div style={{ flex: 1 }}>

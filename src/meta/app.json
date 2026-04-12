@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 1, "dev": 5 },
+  "version": { "major": 1, "minor": 1, "dev": 6 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -123,6 +123,11 @@
           "type": "number"
         },
         {
+          "name": "isGroup",
+          "description": "When true, this entry type is a grouping container and is not selectable in the navigation menu",
+          "type": "boolean"
+        },
+        {
           "name": "formLayout",
           "description": "JSON form layout defining sections, rows, and column field assignments",
           "type": "json"
@@ -158,6 +163,21 @@
           "description": "Plural alias name",
           "type": "string",
           "required": true
+        },
+        {
+          "name": "bgColor",
+          "description": "Badge background hex color",
+          "type": "string"
+        },
+        {
+          "name": "fgColor",
+          "description": "Badge foreground/text hex color",
+          "type": "string"
+        },
+        {
+          "name": "visible",
+          "description": "When false, this alias is hidden from the entry type navigation menu",
+          "type": "boolean"
         }
       ]
     },

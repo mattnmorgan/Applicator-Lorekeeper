@@ -11,6 +11,7 @@ interface EntryType {
   hasIcon: boolean;
   parentTypeId: string;
   sortOrder: number;
+  isGroup?: boolean;
 }
 
 interface EntryTypeAlias {
@@ -20,6 +21,7 @@ interface EntryTypeAlias {
   pluralName: string;
   bgColor?: string;
   fgColor?: string;
+  visible?: boolean;
 }
 
 interface Props {
@@ -84,8 +86,9 @@ function NavNode({
   toggleExpanded: (id: string) => void;
 }) {
   const { type, children } = node;
-  const typeAliases = aliasesByTypeId[type.id] || [];
-  const isSelected = selectedTypeId === type.id && !selectedAliasId;
+  const isGroup = !!type.isGroup;
+  const typeAliases = (aliasesByTypeId[type.id] || []).filter((a) => a.visible !== false);
+  const isSelected = !isGroup && selectedTypeId === type.id && !selectedAliasId;
   const isExpanded = expandedIds.has(type.id);
   const hasChildren = children.length > 0;
 
@@ -97,13 +100,13 @@ function NavNode({
           alignItems: "center",
           gap: 6,
           padding: `6px 12px 6px ${12 + depth * 16}px`,
-          cursor: "pointer",
+          cursor: isGroup ? "default" : "pointer",
           background: isSelected ? "#1e3a5f" : "transparent",
           transition: "background 0.15s",
         }}
-        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a2e47"; }}
-        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
-        onClick={() => onSelectType(type.id)}
+        onMouseEnter={(e) => { if (!isSelected && !isGroup) e.currentTarget.style.background = "#1a2e47"; }}
+        onMouseLeave={(e) => { if (!isSelected && !isGroup) e.currentTarget.style.background = "transparent"; }}
+        onClick={() => { if (!isGroup) onSelectType(type.id); }}
       >
         {hasChildren ? (
           <span
@@ -123,12 +126,12 @@ function NavNode({
               alt=""
             />
           ) : (
-            <span style={{ color: isSelected ? "#93c5fd" : "#94a3b8" }}>
+            <span style={{ color: isSelected ? "#93c5fd" : isGroup ? "#475569" : "#94a3b8" }}>
               <Icon name={(type.icon as any) || "file"} size={14} />
             </span>
           )}
         </span>
-        <span style={{ fontSize: 13, color: isSelected ? "#e2e8f0" : "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 13, color: isSelected ? "#e2e8f0" : isGroup ? "#64748b" : "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontStyle: isGroup ? "italic" : undefined }}>
           {type.pluralName}
         </span>
       </div>

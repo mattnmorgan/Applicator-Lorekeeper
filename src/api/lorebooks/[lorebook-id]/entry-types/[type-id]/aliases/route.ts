@@ -49,6 +49,7 @@ export async function PATCH(
     const updates: any = {};
     if (body.bgColor !== undefined) updates.bgColor = body.bgColor;
     if (body.fgColor !== undefined) updates.fgColor = body.fgColor;
+    if (body.visible !== undefined) updates.visible = body.visible;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
@@ -114,6 +115,7 @@ export async function POST(
       pluralName: body.pluralName.trim(),
       bgColor: body.bgColor || "#1e293b",
       fgColor: body.fgColor || "#94a3b8",
+      visible: body.visible !== false,
     });
 
     return NextResponse.json({ id: record.id, ...record.data }, { status: 201 });

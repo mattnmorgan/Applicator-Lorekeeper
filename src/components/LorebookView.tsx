@@ -18,6 +18,7 @@ interface EntryType {
   bgColor: string;
   fgColor: string;
   sortOrder: number;
+  isGroup?: boolean;
 }
 
 interface Lorebook {
@@ -36,6 +37,7 @@ interface EntryTypeAlias {
   pluralName: string;
   bgColor?: string;
   fgColor?: string;
+  visible?: boolean;
 }
 
 interface Props {

@@ -9,6 +9,7 @@ export interface EntryType {
   bgColor: string;
   fgColor: string;
   sortOrder: number;
+  isGroup?: boolean;
   formLayout?: FormLayout;
 }
 

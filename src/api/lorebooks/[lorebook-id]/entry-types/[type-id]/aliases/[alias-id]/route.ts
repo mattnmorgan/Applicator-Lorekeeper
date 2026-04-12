@@ -23,6 +23,7 @@ export async function PATCH(
     if (body.pluralName !== undefined) updates.pluralName = body.pluralName.trim();
     if (body.bgColor !== undefined) updates.bgColor = body.bgColor;
     if (body.fgColor !== undefined) updates.fgColor = body.fgColor;
+    if (body.visible !== undefined) updates.visible = body.visible;
 
     const table = await aliases.getTable();
     const updated = await aliases.updateRecord(table, params.aliasId, updates);
