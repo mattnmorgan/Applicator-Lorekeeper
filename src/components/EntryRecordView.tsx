@@ -13,6 +13,7 @@ import {
   FormViewer,
   DynamicInput,
   InfoTooltip,
+  SearchableCombobox,
 } from "@applicator/sdk/components";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
@@ -992,31 +993,37 @@ export default function EntryRecordView({
                     >
                       Subtype
                     </div>
-                    <select
-                      value={editValues.aliasId || ""}
-                      onChange={(e) =>
-                        setEditValues((p) => ({
-                          ...p,
-                          aliasId: e.target.value,
-                        }))
+                    <SearchableCombobox<{ id: string; singularName: string; bgColor?: string; fgColor?: string }>
+                      items={[{ id: "", singularName: "None" }, ...aliases]}
+                      renderItem={(a, ctx) =>
+                        ctx === "pill" ? (
+                          <span
+                            style={{
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                              fontSize: 12,
+                              background: a.bgColor || "#334155",
+                              color: a.fgColor || "#f1f5f9",
+                            }}
+                          >
+                            {a.singularName}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 13, color: "#e2e8f0" }}>{a.singularName}</span>
+                        )
                       }
-                      style={{
-                        background: "#1e293b",
-                        border: "1px solid #334155",
-                        borderRadius: 6,
-                        padding: "4px 8px",
-                        color: "#f1f5f9",
-                        fontSize: 12,
-                        outline: "none",
-                      }}
-                    >
-                      <option value="">None</option>
-                      {aliases.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.singularName}
-                        </option>
-                      ))}
-                    </select>
+                      filterItem={(a, term) =>
+                        a.singularName.toLowerCase().includes(term.toLowerCase())
+                      }
+                      selectedItems={[{ id: "", singularName: "None" }, ...aliases].filter(
+                        (a) => a.id === (editValues.aliasId || ""),
+                      )}
+                      onSelectionChange={(items) =>
+                        setEditValues((p) => ({ ...p, aliasId: items[0]?.id || "" }))
+                      }
+                      getItemKey={(a) => a.id || "__none__"}
+                      placeholder="Search subtype…"
+                    />
                   </div>
                 )}
               </>
@@ -1185,16 +1192,7 @@ export default function EntryRecordView({
             >
               Related
             </div>
-            {[...relatedSections].sort((a, b) => {
-              const aItem = (relatedBySec[a.id] || [])[0];
-              const bItem = (relatedBySec[b.id] || [])[0];
-              const aType = aItem?.entryTypeName || "";
-              const bType = bItem?.entryTypeName || "";
-              if (aType !== bType) return aType.localeCompare(bType);
-              const aField = aItem?.fieldName || "";
-              const bField = bItem?.fieldName || "";
-              return aField.localeCompare(bField);
-            }).map((sec) => {
+            {[...relatedSections].sort((a, b) => a.name.localeCompare(b.name)).map((sec) => {
               const records = relatedRecords[sec.id] || [];
 
               // Group records by their inverse relationship label (bToA)
@@ -1460,9 +1458,12 @@ export default function EntryRecordView({
                         display: "flex",
                         alignItems: "center",
                         gap: 10,
-                        padding: "5px 0",
+                        padding: "5px 8px",
                         borderRadius: 6,
+                        transition: "background 0.12s",
                       }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#0f1e36")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       {/* Preview icon */}
                       <div

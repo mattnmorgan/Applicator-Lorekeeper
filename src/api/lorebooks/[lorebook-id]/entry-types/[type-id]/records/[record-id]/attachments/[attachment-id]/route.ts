@@ -56,10 +56,10 @@ export async function PATCH(
     }
 
     const oldPath = attachmentPath(params.recordId, params.attachmentId, record.data.filename);
-    const newPath = attachmentPath(params.recordId, params.attachmentId, newFilename);
+    const newFilenameWithId = `${params.attachmentId}-${newFilename}`;
 
     if (record.data.filename !== newFilename) {
-      await context.appFileManager.rename(oldPath, newPath);
+      await context.appFileManager.rename(oldPath, newFilenameWithId);
     }
 
     const table = await attachments.getTable();

@@ -161,52 +161,54 @@ export default function EntryTypeRecords({
       {/* Header */}
       <div style={{
         display: "flex",
-        flexDirection: "column",
         padding: "12px 16px",
         borderBottom: "1px solid #1e293b",
         flexShrink: 0,
-        gap: 2,
+        alignItems: "center",
+        justifyContent: "space-between",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {entryType && (
-              <span style={{ color: "#94a3b8", flexShrink: 0 }}>
-                {entryType.hasIcon ? (
-                  <img
-                    src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`}
-                    style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", display: "block" }}
-                    alt=""
-                  />
-                ) : (
-                  <Icon name={(entryType.icon as any) || "file"} size={18} />
-                )}
-              </span>
-            )}
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
-              {aliasName || entryType?.pluralName || "Entries"}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          {entryType && (
+            <span style={{ color: "#94a3b8", flexShrink: 0 }}>
+              {entryType.hasIcon ? (
+                <img
+                  src={`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/icon`}
+                  style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", display: "block" }}
+                  alt=""
+                />
+              ) : (
+                <Icon name={(entryType.icon as any) || "file"} size={18} />
+              )}
             </span>
-            {aliasName && (
-              <span style={{ fontSize: 12, color: "#64748b", background: "#1e293b", padding: "1px 6px", borderRadius: 4 }}>
-                {entryType?.pluralName}
-              </span>
-            )}
-            <span style={{ fontSize: 12, color: "#64748b" }}>({filtered.length})</span>
-          </div>
-          {canEdit && (
-            <ButtonIcon
-              name="plus"
-              label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
-              onClick={() => {
-                setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
-                setShowCreate(true);
-              }}
-            />
           )}
-        </div>
-        {(aliasBlurb || (!aliasId && entryType?.blurb)) && (
-          <div style={{ fontSize: 12, color: "#64748b" }}>
-            {aliasBlurb || entryType?.blurb}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
+                {aliasName || entryType?.pluralName || "Entries"}
+              </span>
+              {aliasName && (
+                <span style={{ fontSize: 12, color: "#64748b", background: "#1e293b", padding: "1px 6px", borderRadius: 4 }}>
+                  {entryType?.pluralName}
+                </span>
+              )}
+              <span style={{ fontSize: 12, color: "#64748b" }}>({filtered.length})</span>
+            </div>
+            {(aliasBlurb || (!aliasId && entryType?.blurb)) && (
+              <div style={{ fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {aliasBlurb || entryType?.blurb}
+              </div>
+            )}
           </div>
+        </div>
+        {canEdit && (
+          <ButtonIcon
+            name="plus"
+            label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
+            onClick={() => {
+              setCreateValues({ name: "", blurb: "", aliasId: aliasId || "", iconData: "" });
+              setShowCreate(true);
+            }}
+          />
         )}
       </div>
 

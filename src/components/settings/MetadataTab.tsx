@@ -12,6 +12,7 @@ import {
   ImageUpload,
   FormEditor,
   InfoTooltip,
+  Tooltip,
 } from "@applicator/sdk/components";
 import type {
   FormLayout,
@@ -553,7 +554,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     setEditingField(field);
     const cfg = (field.config || {}) as any;
     setEditFieldValues({
-      options: cfg.options ? [...cfg.options] : [],
+      options: cfg.options ? [...cfg.options].sort((a: any, b: any) => a.label.localeCompare(b.label)) : [],
       multiselect: cfg.multiselect,
       allowCustom: cfg.allowCustom,
       required: !!field.required,
@@ -1563,16 +1564,20 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     })
                                   }
                                 />
-                                <DynamicInput
-                                  input={{ id: "visible", label: "Visible", type: "toggle" }}
-                                  value={editingAlias.visible !== false}
-                                  onChange={(_, v) =>
-                                    setEditingAlias({
-                                      ...editingAlias,
-                                      visible: v,
-                                    })
-                                  }
-                                />
+                                <Tooltip text="Visible" placement="top">
+                                  <div>
+                                    <DynamicInput
+                                      input={{ id: "visible", label: "", type: "toggle" }}
+                                      value={editingAlias.visible !== false}
+                                      onChange={(_, v) =>
+                                        setEditingAlias({
+                                          ...editingAlias,
+                                          visible: v,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                </Tooltip>
                                 <ButtonIcon
                                   name="check"
                                   label="Save"
@@ -1972,7 +1977,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               gap: 4,
                             }}
                           >
-                            {(relatedBySec[sec.id] || []).map((item) => (
+                            {[...(relatedBySec[sec.id] || [])].sort((a, b) => {
+                                const tn = a.entryTypeName.localeCompare(b.entryTypeName);
+                                return tn !== 0 ? tn : a.fieldName.localeCompare(b.fieldName);
+                              }).map((item) => (
                               <div
                                 key={item.id}
                                 style={{
