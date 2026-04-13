@@ -70,6 +70,7 @@ interface EntrySection {
   sectionType: "fields" | "related_list";
   sortOrder: number;
   config?: { aliasIds?: string[] };
+  relatedItems?: RelatedListItem[];
 }
 
 interface RelatedListItem {
@@ -112,6 +113,7 @@ interface Props {
   recordId: string;
   entryTypes: EntryType[];
   aliases?: EntryTypeAlias[];
+  aliasesByTypeId?: Record<string, EntryTypeAlias[]>;
   canEdit: boolean;
   onBack: () => void;
   onNavigateRecord: (typeId: string, recordId: string) => void;
@@ -127,6 +129,7 @@ export default function EntryRecordView({
   recordId,
   entryTypes,
   aliases = [],
+  aliasesByTypeId = {},
   canEdit,
   onBack,
   onNavigateRecord,
@@ -136,9 +139,6 @@ export default function EntryRecordView({
   const [record, setRecord] = useState<EntryRecord | null>(null);
   const [fields, setFields] = useState<EntryField[]>([]);
   const [relatedSections, setRelatedSections] = useState<EntrySection[]>([]);
-  const [relatedBySec, setRelatedBySec] = useState<
-    Record<string, RelatedListItem[]>
-  >({});
   const [lookups, setLookups] = useState<RecordLookup[]>([]);
   const [pendingLookupAdds, setPendingLookupAdds] = useState<RecordLookup[]>([]);
   const [pendingLookupRemoveIds, setPendingLookupRemoveIds] = useState<string[]>([]);
@@ -221,11 +221,13 @@ export default function EntryRecordView({
           `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`,
         ),
         fetch(
-          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/sections`,
+          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/sections?includeRelated=true`,
         ),
         fetch(`${baseUrl}/attachments`),
         fetch(`${baseUrl}/lookups`),
       ]);
+
+      let fetchedLookups: RecordLookup[] = [];
 
       if (recRes.ok) {
         const d = await recRes.json();
@@ -239,7 +241,10 @@ export default function EntryRecordView({
       }
       if (fieldRes.ok) setFields((await fieldRes.json()).fields || []);
       if (attRes.ok) setAttachments((await attRes.json()).attachments || []);
-      if (lookRes.ok) setLookups((await lookRes.json()).lookups || []);
+      if (lookRes.ok) {
+        fetchedLookups = (await lookRes.json()).lookups || [];
+        setLookups(fetchedLookups);
+      }
 
       if (secRes.ok) {
         const { sections: secs } = await secRes.json();
@@ -247,47 +252,44 @@ export default function EntryRecordView({
           (s: EntrySection) => s.sectionType === "related_list",
         );
         setRelatedSections(relSecs);
+
         const relMap: Record<string, RelatedListItem[]> = {};
-        await Promise.all(
-          relSecs.map(async (sec: EntrySection) => {
-            const r = await fetch(
-              `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/sections/${sec.id}/related`,
-            );
-            if (r.ok) relMap[sec.id] = (await r.json()).items || [];
-          }),
-        );
-        setRelatedBySec(relMap);
-      }
-    } catch {}
-    setLoading(false);
-  }, [baseUrl, lorebookId, entryTypeId]);
+        for (const sec of relSecs) {
+          relMap[sec.id] = sec.relatedItems || [];
+        }
+        // Gather unique entry type IDs across all related sections
+        const relatedTypeIds = [
+          ...new Set(
+            Object.values(relMap)
+              .flat()
+              .map((item: RelatedListItem) => item.entryTypeId),
+          ),
+        ];
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+        if (relatedTypeIds.length > 0) {
+          // Fetch records for all related entry types in one bulk request
+          const bulkRes = await fetch(
+            `/api/lorekeeper/lorebooks/${lorebookId}/records?typeIds=${relatedTypeIds.join(",")}`,
+          );
+          const recordsByType: Record<string, any[]> = bulkRes.ok
+            ? (await bulkRes.json()).recordsByTypeId || {}
+            : {};
 
-  // Fetch related list data
-  useEffect(() => {
-    const fetchRelated = async () => {
-      const result: Record<string, any[]> = {};
-      const aliasMap: Record<string, EntryTypeAlias[]> = {};
-      for (const [secId, items] of Object.entries(relatedBySec)) {
-        const recordsForSec: any[] = [];
-        for (const item of items) {
-          try {
-            const allRes = await fetch(
-              `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${item.entryTypeId}/records?search=`,
-            );
-            const myLookupRes = await fetch(
-              `${baseUrl}/lookups?fieldId=${item.fieldId}`,
-            );
-            if (allRes.ok && myLookupRes.ok) {
-              const allData = await allRes.json();
-              const myLookups = (await myLookupRes.json()).lookups || [];
-              for (const lk of myLookups) {
-                // Only show records that point TO this record (current record is record2)
-                if (lk.record2 !== recordId) continue;
-                const otherRecord = allData.records.find(
+          // Use aliasesByTypeId passed from parent (already loaded at lorebook level)
+          setRelatedTypeAliases(aliasesByTypeId);
+
+          // Build relatedRecords using client-side lookup filtering
+          const relatedResult: Record<string, any[]> = {};
+          for (const [secId, items] of Object.entries(relMap)) {
+            const recordsForSec: any[] = [];
+            for (const item of items as RelatedListItem[]) {
+              const typeRecords: any[] = recordsByType[item.entryTypeId] || [];
+              const fieldLookups = fetchedLookups.filter(
+                (lk) =>
+                  lk.customFieldId === item.fieldId && lk.record2 === recordId,
+              );
+              for (const lk of fieldLookups) {
+                const otherRecord = typeRecords.find(
                   (r: any) => r.id === lk.record1,
                 );
                 if (otherRecord)
@@ -300,25 +302,21 @@ export default function EntryRecordView({
                   });
               }
             }
-            // Fetch aliases for this related entry type if not already loaded
-            if (!aliasMap[item.entryTypeId]) {
-              try {
-                const ar = await fetch(
-                  `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${item.entryTypeId}/aliases`,
-                );
-                if (ar.ok)
-                  aliasMap[item.entryTypeId] = (await ar.json()).aliases || [];
-              } catch {}
-            }
-          } catch {}
+            relatedResult[secId] = recordsForSec;
+          }
+          setRelatedRecords(relatedResult);
+        } else {
+          setRelatedRecords({});
+          setRelatedTypeAliases(aliasesByTypeId);
         }
-        result[secId] = recordsForSec;
       }
-      setRelatedRecords(result);
-      setRelatedTypeAliases(aliasMap);
-    };
-    if (Object.keys(relatedBySec).length > 0) fetchRelated();
-  }, [relatedBySec, recordId]);
+    } catch {}
+    setLoading(false);
+  }, [baseUrl, lorebookId, entryTypeId, recordId, aliasesByTypeId]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -766,6 +764,7 @@ export default function EntryRecordView({
           lorebookId={lorebookId}
           recordId={recordId}
           entryTypes={entryTypes}
+          aliasesByTypeId={aliasesByTypeId}
           lookups={effectiveLookups}
           addToast={addToast}
           onAdded={(lk) => setPendingLookupAdds((p) => [...p, lk])}
@@ -1740,6 +1739,7 @@ function LookupFieldEditor({
   lorebookId,
   recordId,
   entryTypes,
+  aliasesByTypeId,
   lookups,
   onAdded,
   onRemoved,
@@ -1749,6 +1749,7 @@ function LookupFieldEditor({
   lorebookId: string;
   recordId: string;
   entryTypes: EntryType[];
+  aliasesByTypeId: Record<string, EntryTypeAlias[]>;
   lookups: RecordLookup[];
   onAdded: (lk: RecordLookup) => void;
   onRemoved: (id: string) => void;
@@ -1757,9 +1758,6 @@ function LookupFieldEditor({
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
-  const [targetAliasMap, setTargetAliasMap] = useState<
-    Record<string, { singularName: string; bgColor?: string; fgColor?: string }>
-  >({});
   const [createTypeId, setCreateTypeId] = useState<string | null>(null);
 
   const targetIds: string[] = field.config?.targetEntryTypeIds || [];
@@ -1770,29 +1768,16 @@ function LookupFieldEditor({
   const canAddMore =
     field.config?.multiselect !== false || fieldLookups.length === 0;
 
-  useEffect(() => {
-    if (targetIds.length === 0) return;
-    const fetchAliases = async () => {
-      const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
-      await Promise.all(
-        targetIds.map(async (typeId) => {
-          try {
-            const res = await fetch(
-              `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/aliases`,
-            );
-            if (res.ok) {
-              const data = await res.json();
-              for (const a of data.aliases || []) {
-                map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
-              }
-            }
-          } catch {}
-        }),
-      );
-      setTargetAliasMap(map);
-    };
-    fetchAliases();
-  }, [lorebookId, targetIds.join(",")]);
+  // Build alias map from passed-in aliasesByTypeId for all target types
+  const targetAliasMap = React.useMemo(() => {
+    const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
+    for (const typeId of targetIds) {
+      for (const a of aliasesByTypeId[typeId] || []) {
+        map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
+      }
+    }
+    return map;
+  }, [aliasesByTypeId, targetIds.join(",")]);
 
   useEffect(() => {
     if (!search.trim()) { setResults([]); return; }

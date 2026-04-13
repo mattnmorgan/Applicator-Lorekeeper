@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 2, "dev": 0 },
+  "version": { "major": 1, "minor": 2, "dev": 2 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -513,6 +513,11 @@
       "path": "lorebooks/[lorebook-id]",
       "method": "DELETE",
       "description": "Delete a lorebook and all its data"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/records",
+      "method": "GET",
+      "description": "Bulk fetch records for multiple entry types by typeIds query param"
     },
     {
       "path": "lorebooks/[lorebook-id]/icon",

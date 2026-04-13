@@ -221,6 +221,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 recordId={recordId}
                 entryTypes={entryTypes}
                 aliases={aliasesByTypeId[entryTypeId] || []}
+                aliasesByTypeId={aliasesByTypeId}
                 canEdit={canEdit}
                 onBack={() => handleBackToList(entryTypeId)}
                 onNavigateRecord={(typeId, rId) => handleSelectRecord(typeId, rId)}
