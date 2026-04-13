@@ -46,6 +46,7 @@ interface Props {
   aliasId?: string;
   aliasName?: string;
   aliasBlurb?: string;
+  initialSearch?: string;
   onSelectRecord: (recordId: string) => void;
   onAliasCreated?: (typeId: string, alias: EntryTypeAlias) => void;
   addToast: (message: string, type?: "success" | "error") => void;
@@ -60,13 +61,14 @@ export default function EntryTypeRecords({
   aliasId,
   aliasName,
   aliasBlurb,
+  initialSearch,
   onSelectRecord,
   onAliasCreated,
   addToast,
 }: Props) {
   const [records, setRecords] = useState<EntryRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch || "");
   const [deleteTarget, setDeleteTarget] = useState<EntryRecord | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showPrint, setShowPrint] = useState(false);

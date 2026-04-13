@@ -59,8 +59,13 @@ export async function GET(req: NextRequest, context: ApiContext) {
       role,
     });
 
+    const canCreate = await context.isUserAuthorizedFor(
+      "lorekeeper:create-lorebook",
+    );
+
     return NextResponse.json({
       currentUserId: user.id,
+      canCreate,
       owned: ownedResult.records.map((r: any) => mapBook(r, "owner")),
       shared: sharedBooks.map((book: any) => {
         const membership = memberResult.records.find(

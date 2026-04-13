@@ -59,6 +59,7 @@ export default function LorebookList({ navigate }: Props) {
         const data = await res.json();
         setOwned(data.owned || []);
         setShared(data.shared || []);
+        setCanCreate(!!data.canCreate);
         if (data.currentUserId) setCurrentUserId(data.currentUserId);
       }
     } catch {}
@@ -67,11 +68,6 @@ export default function LorebookList({ navigate }: Props) {
 
   useEffect(() => {
     fetchLorebooks();
-    fetch("/api/lorekeeper/lorebooks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "" }),
-    }).then((r) => setCanCreate(r.status !== 403));
   }, []);
 
   const handleCreate = async () => {

@@ -19,7 +19,7 @@ interface Lorebook {
 
 interface Props {
   lorebookId: string;
-  tab: SettingsTab;
+  tab?: string;
   navigate: (v: AppView) => void;
 }
 
@@ -31,7 +31,7 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "delete", label: "Delete", icon: "trash" },
 ];
 
-export default function LorebookSettings({ lorebookId, tab, navigate }: Props) {
+export default function LorebookSettings({ lorebookId, tab = "details", navigate }: Props) {
   const [lorebook, setLorebook] = useState<Lorebook | null>(null);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<any[]>([]);
