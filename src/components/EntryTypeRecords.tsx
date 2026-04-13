@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ButtonIcon, Icon, ConfirmModal, Spinner } from "@applicator/sdk/components";
 import CreateEntryModal from "./CreateEntryModal";
+import PrintModal from "./PrintModal";
 
 interface EntryType {
   id: string;
@@ -14,6 +15,7 @@ interface EntryType {
   fgColor: string;
   blurb?: string;
   allowAliasCreation?: boolean;
+  isGroup?: boolean;
 }
 
 interface EntryTypeAlias {
@@ -67,6 +69,7 @@ export default function EntryTypeRecords({
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<EntryRecord | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const aliases = aliasesByTypeId[entryTypeId] || [];
@@ -166,13 +169,20 @@ export default function EntryTypeRecords({
             )}
           </div>
         </div>
-        {canEdit && (
+        <div style={{ display: "flex", gap: 4 }}>
           <ButtonIcon
-            name="plus"
-            label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
-            onClick={() => setShowCreate(true)}
+            name="print"
+            label={`Print ${aliasName || entryType?.pluralName || "entries"}`}
+            onClick={() => setShowPrint(true)}
           />
-        )}
+          {canEdit && (
+            <ButtonIcon
+              name="plus"
+              label={`Create new ${aliasName || entryType?.singularName || "entry"}`}
+              onClick={() => setShowCreate(true)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -315,6 +325,19 @@ export default function EntryTypeRecords({
           danger
           onConfirm={() => handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {showPrint && (
+        <PrintModal
+          lorebookId={lorebookId}
+          scope="type"
+          entryTypeId={entryTypeId}
+          aliasId={aliasId}
+          aliasName={aliasName}
+          entryTypes={entryTypes}
+          aliasesByTypeId={aliasesByTypeId}
+          onClose={() => setShowPrint(false)}
         />
       )}
     </div>

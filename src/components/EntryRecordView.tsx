@@ -17,6 +17,7 @@ import {
 } from "@applicator/sdk/components";
 import CreateEntryModal from "./CreateEntryModal";
 import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
+import PrintModal from "./PrintModal";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,10 +27,12 @@ interface EntryType {
   singularName: string;
   pluralName: string;
   icon: string;
+  hasIcon: boolean;
   bgColor: string;
   fgColor: string;
   formLayout?: FormLayout | null;
   allowAliasCreation?: boolean;
+  isGroup?: boolean;
 }
 
 interface EntryRecord {
@@ -154,6 +157,7 @@ export default function EntryRecordView({
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
   const [previewFile, setPreviewFile] = useState<Attachment | null>(null);
   const [uploading, setUploading] = useState(false);
   const [iconVersion, setIconVersion] = useState(0);
@@ -902,6 +906,11 @@ export default function EntryRecordView({
           </span>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
+          <ButtonIcon
+            name="print"
+            label="Print entry"
+            onClick={() => setShowPrint(true)}
+          />
           {canEdit && !editing && (
             <ButtonIcon
               name="edit"
@@ -1301,7 +1310,11 @@ export default function EntryRecordView({
         )}
 
         {/* Related sections */}
-        {relatedSections.length > 0 && (
+        {relatedSections.filter((sec) => {
+          const ids = sec.config?.aliasIds;
+          if (!ids || ids.length === 0) return true;
+          return activeAliasId ? ids.includes(activeAliasId) : false;
+        }).length > 0 && (
           <>
             <hr
               style={{
@@ -1320,7 +1333,11 @@ export default function EntryRecordView({
             >
               Related
             </div>
-            {[...relatedSections].sort((a, b) => a.name.localeCompare(b.name)).map((sec) => {
+            {[...relatedSections].filter((sec) => {
+              const ids = sec.config?.aliasIds;
+              if (!ids || ids.length === 0) return true;
+              return activeAliasId ? ids.includes(activeAliasId) : false;
+            }).sort((a, b) => a.name.localeCompare(b.name)).map((sec) => {
               const records = relatedRecords[sec.id] || [];
 
               // Group records by their inverse relationship label (bToA)
@@ -1726,6 +1743,18 @@ export default function EntryRecordView({
           danger
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
+        />
+      )}
+
+      {showPrint && (
+        <PrintModal
+          lorebookId={lorebookId}
+          scope="record"
+          entryTypeId={entryTypeId}
+          recordId={recordId}
+          entryTypes={entryTypes}
+          aliasesByTypeId={aliasesByTypeId}
+          onClose={() => setShowPrint(false)}
         />
       )}
     </div>

@@ -167,12 +167,15 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   // Related (sections with sectionType === "related_list")
   const [showCreateRelSec, setShowCreateRelSec] = useState(false);
   const [newRelSecName, setNewRelSecName] = useState("");
+  const [newRelSecAliasIds, setNewRelSecAliasIds] = useState<string[]>([]);
   const [relatedSecId, setRelatedSecId] = useState<string | null>(null);
   const [relatedTypeId, setRelatedTypeId] = useState("");
   const [relatedFieldId, setRelatedFieldId] = useState("");
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
   const [renamingRelSecId, setRenamingRelSecId] = useState<string | null>(null);
   const [relSecRenameValue, setRelSecRenameValue] = useState("");
+  const [editingRelSecAliasSecId, setEditingRelSecAliasSecId] = useState<string | null>(null);
+  const [editRelSecAliasIds, setEditRelSecAliasIds] = useState<string[]>([]);
   const [lookupTargetAliasOptions, setLookupTargetAliasOptions] = useState<EntryTypeAlias[]>([]);
   const [editingFieldTargetAliases, setEditingFieldTargetAliases] = useState<EntryTypeAlias[]>([]);
 
@@ -691,6 +694,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         body: JSON.stringify({
           name: newRelSecName.trim(),
           sectionType: "related_list",
+          config: { aliasIds: newRelSecAliasIds },
         }),
       },
     );
@@ -699,9 +703,29 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setSections((prev) => [...prev, sec]);
       setRelatedBySec((p) => ({ ...p, [sec.id]: [] }));
       setNewRelSecName("");
+      setNewRelSecAliasIds([]);
       setShowCreateRelSec(false);
       addToast("Related section created");
     } else addToast("Failed to create section", "error");
+  };
+
+  const handleUpdateRelSecAliases = async (sectionId: string, aliasIds: string[]) => {
+    if (!activeTypeId) return;
+    const res = await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${sectionId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: { aliasIds } }),
+      },
+    );
+    if (res.ok) {
+      setSections((prev) =>
+        prev.map((s) => s.id === sectionId ? { ...s, config: { ...s.config, aliasIds } } : s),
+      );
+      setEditingRelSecAliasSecId(null);
+      addToast("Section visibility updated");
+    } else addToast("Failed to update section", "error");
   };
 
   const handleRenameRelatedSection = async (sectionId: string, newName: string) => {
@@ -1959,7 +1983,6 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               <>
                                 <span
                                   style={{
-                                    flex: 1,
                                     fontSize: 13,
                                     fontWeight: 600,
                                     color: "#f1f5f9",
@@ -1967,6 +1990,23 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 >
                                   {sec.name}
                                 </span>
+                                {(sec.config?.aliasIds?.length ?? 0) > 0 && (
+                                  <span style={{ fontSize: 11, color: "#93c5fd", background: "#172554", padding: "2px 7px", borderRadius: 4 }}>
+                                    Restricted
+                                  </span>
+                                )}
+                                <span style={{ flex: 1 }} />
+                                {canEdit && aliases.length > 0 && (
+                                  <ButtonIcon
+                                    name="users"
+                                    label="Edit alias restriction"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingRelSecAliasSecId(sec.id);
+                                      setEditRelSecAliasIds(sec.config?.aliasIds || []);
+                                    }}
+                                  />
+                                )}
                                 {canEdit && (
                                   <ButtonIcon
                                     name="edit"
@@ -2950,12 +2990,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             </span>
           }
           closeable
-          onClose={() => setShowCreateRelSec(false)}
+          onClose={() => { setShowCreateRelSec(false); setNewRelSecAliasIds([]); }}
           footer={
             <>
               <Button
                 variant="secondary"
-                onClick={() => setShowCreateRelSec(false)}
+                onClick={() => { setShowCreateRelSec(false); setNewRelSecAliasIds([]); }}
               >
                 Cancel
               </Button>
@@ -2968,9 +3008,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               </Button>
             </>
           }
-          maxWidth={380}
+          maxWidth={420}
         >
-          <div style={{ padding: 16 }}>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
             <DynamicInput
               input={{
                 id: "name",
@@ -2981,6 +3021,69 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               }}
               value={newRelSecName}
               onChange={(_, v) => setNewRelSecName(v)}
+            />
+            {aliases.length > 0 && (
+              <DynamicInput
+                input={{
+                  id: "aliasIds",
+                  label: "Restrict to aliases (optional)",
+                  type: "badge-multiselect",
+                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
+                    value: a.id,
+                    label: a.pluralName,
+                    selectedColor: a.bgColor || "#334155",
+                    fgColor: a.fgColor || "#f1f5f9",
+                  })),
+                }}
+                value={newRelSecAliasIds}
+                onChange={(_, v) => setNewRelSecAliasIds(v as string[])}
+              />
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {editingRelSecAliasSecId && (
+        <Modal
+          header={
+            <span style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>
+              Restrict Section Visibility
+            </span>
+          }
+          closeable
+          onClose={() => setEditingRelSecAliasSecId(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setEditingRelSecAliasSecId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => handleUpdateRelSecAliases(editingRelSecAliasSecId, editRelSecAliasIds)}
+              >
+                Save
+              </Button>
+            </>
+          }
+          maxWidth={420}
+        >
+          <div style={{ padding: 16 }}>
+            <DynamicInput
+              input={{
+                id: "aliasIds",
+                label: "Restrict to aliases (optional)",
+                type: "badge-multiselect",
+                tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
+                  value: a.id,
+                  label: a.pluralName,
+                  selectedColor: a.bgColor || "#334155",
+                  fgColor: a.fgColor || "#f1f5f9",
+                })),
+              }}
+              value={editRelSecAliasIds}
+              onChange={(_, v) => setEditRelSecAliasIds(v as string[])}
             />
           </div>
         </Modal>

@@ -6,6 +6,7 @@ import type { AppView } from "../apps/Lorekeeper";
 import EntryTypeNav from "./EntryTypeNav";
 import EntryTypeRecords from "./EntryTypeRecords";
 import EntryRecordView from "./EntryRecordView";
+import PrintModal from "./PrintModal";
 
 interface EntryType {
   id: string;
@@ -57,6 +58,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
   const [navOpen, setNavOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<any[]>([]);
+  const [showPrint, setShowPrint] = useState(false);
 
   const addToast = (message: string, type: "success" | "error" = "success") => {
     setToasts((t) => [...t, { message, type }]);
@@ -154,6 +156,11 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <ButtonIcon
+            name="print"
+            label="Print lorebook"
+            onClick={() => setShowPrint(true)}
+          />
+          <ButtonIcon
             name="settings"
             label="Lorebook settings"
             onClick={() => navigate({ type: "settings", lorebookId, tab: "details" })}
@@ -234,6 +241,17 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
       </div>
 
       <ToastStack toasts={toasts} onClose={removeToast} />
+
+      {showPrint && (
+        <PrintModal
+          lorebookId={lorebookId}
+          lorebookName={lorebook?.name}
+          scope="lorebook"
+          entryTypes={entryTypes}
+          aliasesByTypeId={aliasesByTypeId}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
     </div>
   );
 }
