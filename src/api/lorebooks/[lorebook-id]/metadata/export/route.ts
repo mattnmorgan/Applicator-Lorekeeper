@@ -89,10 +89,13 @@ export async function GET(
         const typeAliases = (aliasesByTypeId[t.id] || [])
           .sort((a: any, b: any) => a.pluralName.localeCompare(b.pluralName))
           .map((a: any) => ({
+            id: a.id,
             singularName: a.singularName,
             pluralName: a.pluralName,
             bgColor: a.bgColor,
             fgColor: a.fgColor,
+            blurb: a.blurb || "",
+            visible: a.visible !== false,
           }));
 
         return {
@@ -105,6 +108,9 @@ export async function GET(
           bgColor: t.bgColor,
           fgColor: t.fgColor,
           sortOrder: t.sortOrder,
+          isGroup: t.isGroup || false,
+          allowAliasCreation: t.allowAliasCreation || false,
+          formLayout: t.formLayout || null,
           aliases: typeAliases,
           sections: typeSections.map((s: any) => {
             const sectionFields = fieldsRes.records
@@ -123,6 +129,7 @@ export async function GET(
               name: s.name,
               sectionType: s.sectionType,
               sortOrder: s.sortOrder,
+              config: s.config || null,
               fields: sectionFields.map((f: any) => {
                 const config = f.config || {};
                 let exportedConfig = { ...config };
@@ -140,9 +147,13 @@ export async function GET(
                 }
 
                 return {
+                  id: f.id,
                   name: f.name,
                   fieldType: f.fieldType,
                   config: exportedConfig,
+                  aliasIds: f.aliasIds || [],
+                  required: f.required || false,
+                  tooltip: f.tooltip || "",
                   sortOrder: f.sortOrder,
                 };
               }),

@@ -3,6 +3,28 @@ import { ApiContext } from "@applicator/sdk/context";
 import { getLorebookAccess, canEdit } from "../../../../../lib/permissions";
 import { lorebookIconPath, entryTypeIconPath, saveIconFromDataUrl } from "../../../../../lib/iconStorage";
 
+function remapFormLayout(
+  layout: any,
+  aliasIdMap: Record<string, string>,
+  fieldIdMap: Record<string, string>
+): any {
+  if (!layout?.sections) return layout;
+  return {
+    ...layout,
+    sections: layout.sections.map((sec: any) => ({
+      ...sec,
+      aliasIds: (sec.aliasIds || []).map((id: string) => aliasIdMap[id] ?? id),
+      rows: (sec.rows || []).map((row: any) => ({
+        ...row,
+        columns: (row.columns || []).map((col: any) => ({
+          ...col,
+          fieldId: col.fieldId ? (fieldIdMap[col.fieldId] ?? col.fieldId) : col.fieldId,
+        })),
+      })),
+    })),
+  };
+}
+
 export async function POST(
   req: NextRequest,
   context: ApiContext,
@@ -40,6 +62,8 @@ export async function POST(
         bgColor: et.bgColor || "#334155",
         fgColor: et.fgColor || "#f1f5f9",
         sortOrder: et.sortOrder ?? 0,
+        isGroup: et.isGroup || false,
+        allowAliasCreation: et.allowAliasCreation || false,
       });
       nameToId[et.singularName] = record.id;
       createdTypes.push({ record, source: et });
@@ -56,30 +80,42 @@ export async function POST(
 
     // Second pass: create sections, fields, and aliases per type
     for (const { record: typeRecord, source } of createdTypes) {
-      // Create aliases
+      const aliasIdMap: Record<string, string> = {};
+      const fieldIdMap: Record<string, string> = {};
+
+      // Create aliases and build old→new alias ID map
       if (Array.isArray(source.aliases)) {
         for (const alias of source.aliases) {
           if (!alias.singularName?.trim() || !alias.pluralName?.trim()) continue;
-          await rm("entry_type_alias").createRecord(aliasTable, {
+          const aliasRecord = await rm("entry_type_alias").createRecord(aliasTable, {
             lorebookId: params.lorebookId,
             entryTypeId: typeRecord.id,
             singularName: alias.singularName.trim(),
             pluralName: alias.pluralName.trim(),
             bgColor: alias.bgColor || "#1e293b",
             fgColor: alias.fgColor || "#94a3b8",
+            blurb: alias.blurb || "",
+            visible: alias.visible !== false,
           });
+          if (alias.id) aliasIdMap[alias.id] = aliasRecord.id;
         }
       }
 
       if (!source.sections) continue;
 
       for (const sec of source.sections) {
+        // Remap alias IDs in section config
+        const remappedConfig = sec.config
+          ? { ...sec.config, aliasIds: (sec.config.aliasIds || []).map((id: string) => aliasIdMap[id] ?? id) }
+          : null;
+
         const secRecord = await rm("entry_section").createRecord(secTable, {
           lorebookId: params.lorebookId,
           entryTypeId: typeRecord.id,
           name: sec.name,
           sectionType: sec.sectionType,
           sortOrder: sec.sortOrder ?? 0,
+          config: remappedConfig,
         });
 
         if (sec.fields) {
@@ -99,17 +135,27 @@ export async function POST(
               delete config.targetEntryTypeNames;
             }
 
-            await rm("entry_field").createRecord(fieldTable, {
+            const fieldRecord = await rm("entry_field").createRecord(fieldTable, {
               lorebookId: params.lorebookId,
               entryTypeId: typeRecord.id,
               sectionId: secRecord.id,
               name: field.name,
               fieldType: field.fieldType,
               config,
+              aliasIds: (field.aliasIds || []).map((id: string) => aliasIdMap[id] ?? id),
+              required: field.required || false,
+              tooltip: field.tooltip || "",
               sortOrder: field.sortOrder ?? 0,
             });
+            if (field.id) fieldIdMap[field.id] = fieldRecord.id;
           }
         }
+      }
+
+      // Remap and apply formLayout now that both alias and field ID maps are complete
+      if (source.formLayout) {
+        const remappedLayout = remapFormLayout(source.formLayout, aliasIdMap, fieldIdMap);
+        await rm("entry_type").updateRecord(etTable, typeRecord.id, { formLayout: remappedLayout });
       }
     }
 
