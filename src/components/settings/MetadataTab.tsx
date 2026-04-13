@@ -35,6 +35,7 @@ interface EntryType {
   fgColor: string;
   sortOrder: number;
   isGroup?: boolean;
+  allowAliasCreation?: boolean;
   formLayout?: FormLayout | null;
 }
 
@@ -1194,7 +1195,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           <div
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "1fr 1fr auto",
+                              gridTemplateColumns: "1fr 1fr auto auto",
                               gap: 10,
                               alignItems: "start",
                             }}
@@ -1220,6 +1221,17 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 input={{ id: "isGroup", label: "", type: "toggle" }}
                                 value={!!activeType.isGroup}
                                 onChange={(_, v) => handleUpdateType("isGroup", v)}
+                              />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                Allow alias creation
+                                <InfoTooltip text="When enabled, users can create new aliases on the fly from the create and edit entry experience." />
+                              </div>
+                              <DynamicInput
+                                input={{ id: "allowAliasCreation", label: "", type: "toggle" }}
+                                value={!!activeType.allowAliasCreation}
+                                onChange={(_, v) => handleUpdateType("allowAliasCreation", v)}
                               />
                             </div>
                           </div>

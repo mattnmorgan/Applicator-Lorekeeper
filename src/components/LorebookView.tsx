@@ -19,6 +19,7 @@ interface EntryType {
   fgColor: string;
   sortOrder: number;
   isGroup?: boolean;
+  allowAliasCreation?: boolean;
 }
 
 interface Lorebook {
@@ -95,6 +96,17 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
 
   const handleBackToList = (typeId: string) => {
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, aliasId });
+  };
+
+  const handleAliasCreated = (typeId: string, alias: EntryTypeAlias) => {
+    setAliasesByTypeId((prev) => {
+      const existing = prev[typeId] || [];
+      if (existing.find((a) => a.id === alias.id)) return prev;
+      const updated = [...existing, alias].sort((a, b) =>
+        a.pluralName.localeCompare(b.pluralName),
+      );
+      return { ...prev, [typeId]: updated };
+    });
   };
 
   const canEdit = lorebook?.accessLevel === "owner" || lorebook?.accessLevel === "manager" || lorebook?.accessLevel === "edit";
@@ -198,6 +210,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 aliasName={currentAlias?.pluralName}
                 aliasBlurb={currentAlias?.blurb}
                 onSelectRecord={(rId) => handleSelectRecord(entryTypeId, rId)}
+                onAliasCreated={handleAliasCreated}
                 addToast={addToast}
               />
             )}
@@ -211,6 +224,7 @@ export default function LorebookView({ lorebookId, entryTypeId, recordId, aliasI
                 canEdit={canEdit}
                 onBack={() => handleBackToList(entryTypeId)}
                 onNavigateRecord={(typeId, rId) => handleSelectRecord(typeId, rId)}
+                onAliasCreated={handleAliasCreated}
                 addToast={addToast}
               />
             )}

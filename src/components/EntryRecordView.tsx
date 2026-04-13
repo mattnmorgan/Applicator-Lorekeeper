@@ -16,6 +16,7 @@ import {
   SearchableCombobox,
 } from "@applicator/sdk/components";
 import CreateEntryModal from "./CreateEntryModal";
+import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ interface EntryType {
   bgColor: string;
   fgColor: string;
   formLayout?: FormLayout | null;
+  allowAliasCreation?: boolean;
 }
 
 interface EntryRecord {
@@ -47,6 +49,7 @@ interface EntryTypeAlias {
   pluralName: string;
   bgColor?: string;
   fgColor?: string;
+  visible?: boolean;
 }
 
 interface EntryField {
@@ -112,6 +115,7 @@ interface Props {
   canEdit: boolean;
   onBack: () => void;
   onNavigateRecord: (typeId: string, recordId: string) => void;
+  onAliasCreated?: (typeId: string, alias: EntryTypeAlias) => void;
   addToast: (message: string, type?: "success" | "error") => void;
 }
 
@@ -126,6 +130,7 @@ export default function EntryRecordView({
   canEdit,
   onBack,
   onNavigateRecord,
+  onAliasCreated,
   addToast,
 }: Props) {
   const [record, setRecord] = useState<EntryRecord | null>(null);
@@ -154,8 +159,55 @@ export default function EntryRecordView({
   const [iconVersion, setIconVersion] = useState(0);
   const [renamingAttachment, setRenamingAttachment] = useState<Attachment | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [localAliases, setLocalAliases] = useState<EntryTypeAlias[]>(aliases);
+  const [showNewAliasForm, setShowNewAliasForm] = useState(false);
+  const [savingAlias, setSavingAlias] = useState(false);
+
+  // Keep localAliases in sync when the parent refreshes the aliases prop
+  React.useEffect(() => {
+    setLocalAliases(aliases);
+  }, [aliases]);
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
+
+  const handleSaveNewAlias = async (newValues: NewAliasValues) => {
+    setSavingAlias(true);
+    try {
+      const res = await fetch(
+        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/aliases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newValues),
+        },
+      );
+      if (res.ok) {
+        const alias = await res.json();
+        const newAlias: EntryTypeAlias = {
+          id: alias.id,
+          entryTypeId,
+          singularName: alias.singularName,
+          pluralName: alias.pluralName,
+          bgColor: alias.bgColor,
+          fgColor: alias.fgColor,
+          visible: alias.visible,
+        };
+        setLocalAliases((prev) =>
+          [...prev, newAlias].sort((a, b) =>
+            a.pluralName.localeCompare(b.pluralName),
+          ),
+        );
+        setEditValues((p: any) => ({ ...p, aliasId: alias.id }));
+        setShowNewAliasForm(false);
+        onAliasCreated?.(entryTypeId, newAlias);
+      } else {
+        addToast("Failed to create alias", "error");
+      }
+    } catch {
+      addToast("Failed to create alias", "error");
+    }
+    setSavingAlias(false);
+  };
   const baseUrl = `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${recordId}`;
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -733,7 +785,7 @@ export default function EntryRecordView({
 
   // ── Derived state ─────────────────────────────────────────────────────────
 
-  const activeAlias = aliases.find(
+  const activeAlias = localAliases.find(
     (a) => a.id === (editing ? editValues.aliasId : record?.aliasId),
   );
   const activeAliasId = activeAlias?.id;
@@ -1028,7 +1080,7 @@ export default function EntryRecordView({
                     marginBottom: 8,
                   }}
                 />
-                {aliases.length > 0 && (
+                {localAliases.length > 0 && !showNewAliasForm && (
                   <div>
                     <div
                       style={{
@@ -1040,7 +1092,7 @@ export default function EntryRecordView({
                       Subtype
                     </div>
                     <SearchableCombobox<{ id: string; singularName: string; bgColor?: string; fgColor?: string }>
-                      items={[{ id: "", singularName: "None" }, ...aliases]}
+                      items={[{ id: "", singularName: "None" }, ...localAliases]}
                       renderItem={(a, ctx) =>
                         ctx === "pill" ? (
                           <span
@@ -1061,7 +1113,7 @@ export default function EntryRecordView({
                       filterItem={(a, term) =>
                         a.singularName.toLowerCase().includes(term.toLowerCase())
                       }
-                      selectedItems={[{ id: "", singularName: "None" }, ...aliases].filter(
+                      selectedItems={[{ id: "", singularName: "None" }, ...localAliases].filter(
                         (a) => a.id === (editValues.aliasId || ""),
                       )}
                       onSelectionChange={(items) =>
@@ -1071,6 +1123,37 @@ export default function EntryRecordView({
                       placeholder="Search subtype…"
                     />
                   </div>
+                )}
+                {entryType?.allowAliasCreation && !showNewAliasForm && (
+                  <button
+                    type="button"
+                    onClick={() => setShowNewAliasForm(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#64748b",
+                      fontSize: 12,
+                      padding: "2px 0",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#64748b")}
+                  >
+                    <Icon name="plus" size={13} />
+                    Create new alias…
+                  </button>
+                )}
+                {showNewAliasForm && (
+                  <NewAliasForm
+                    defaultBgColor={entryType?.bgColor || "#1e293b"}
+                    defaultFgColor={entryType?.fgColor || "#94a3b8"}
+                    onSave={handleSaveNewAlias}
+                    onCancel={() => setShowNewAliasForm(false)}
+                    saving={savingAlias}
+                  />
                 )}
               </>
             ) : (

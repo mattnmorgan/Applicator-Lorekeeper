@@ -13,6 +13,7 @@ interface EntryType {
   bgColor: string;
   fgColor: string;
   blurb?: string;
+  allowAliasCreation?: boolean;
 }
 
 interface EntryTypeAlias {
@@ -44,6 +45,7 @@ interface Props {
   aliasName?: string;
   aliasBlurb?: string;
   onSelectRecord: (recordId: string) => void;
+  onAliasCreated?: (typeId: string, alias: EntryTypeAlias) => void;
   addToast: (message: string, type?: "success" | "error") => void;
 }
 
@@ -57,6 +59,7 @@ export default function EntryTypeRecords({
   aliasName,
   aliasBlurb,
   onSelectRecord,
+  onAliasCreated,
   addToast,
 }: Props) {
   const [records, setRecords] = useState<EntryRecord[]>([]);
@@ -299,6 +302,7 @@ export default function EntryTypeRecords({
             addToast(`${entryType?.singularName || "Entry"} created`);
             onSelectRecord(record.id);
           }}
+          onAliasCreated={onAliasCreated}
           onClose={() => setShowCreate(false)}
         />
       )}

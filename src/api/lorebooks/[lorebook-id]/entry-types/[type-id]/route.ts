@@ -40,7 +40,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const allowed = ["singularName", "pluralName", "icon", "blurb", "parentTypeId", "bgColor", "fgColor", "sortOrder", "isGroup", "formLayout"];
+    const allowed = ["singularName", "pluralName", "icon", "blurb", "parentTypeId", "bgColor", "fgColor", "sortOrder", "isGroup", "allowAliasCreation", "formLayout"];
     const updates: any = {};
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];

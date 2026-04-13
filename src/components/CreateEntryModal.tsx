@@ -12,6 +12,7 @@ import {
   DynamicInput,
   RichTextEditor,
 } from "@applicator/sdk/components";
+import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ interface EntryType {
   icon: string;
   bgColor: string;
   fgColor: string;
+  allowAliasCreation?: boolean;
 }
 
 interface EntryField {
@@ -42,6 +44,7 @@ interface TargetAlias {
   pluralName?: string;
   bgColor?: string;
   fgColor?: string;
+  visible?: boolean;
 }
 
 interface PendingRecord {
@@ -307,6 +310,7 @@ interface Props {
   initialName?: string;
   addToast: (message: string, type?: "success" | "error") => void;
   onCreated: (record: CreatedRecord) => void;
+  onAliasCreated?: (typeId: string, alias: TargetAlias) => void;
   onClose: () => void;
 }
 
@@ -319,6 +323,7 @@ export default function CreateEntryModal({
   initialName,
   addToast,
   onCreated,
+  onAliasCreated,
   onClose,
 }: Props) {
   const [aliases, setAliases] = useState<TargetAlias[]>([]);
@@ -333,8 +338,48 @@ export default function CreateEntryModal({
   const [fieldData, setFieldData] = useState<Record<string, any>>({});
   const [pendingLookups, setPendingLookups] = useState<Record<string, PendingRecord[]>>({});
   const [creating, setCreating] = useState(false);
+  const [showNewAliasForm, setShowNewAliasForm] = useState(false);
+  const [savingAlias, setSavingAlias] = useState(false);
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
+
+  const handleSaveNewAlias = async (newValues: NewAliasValues) => {
+    setSavingAlias(true);
+    try {
+      const res = await fetch(
+        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/aliases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newValues),
+        },
+      );
+      if (res.ok) {
+        const alias = await res.json();
+        const newAlias: TargetAlias = {
+          id: alias.id,
+          singularName: alias.singularName,
+          pluralName: alias.pluralName,
+          bgColor: alias.bgColor,
+          fgColor: alias.fgColor,
+          visible: alias.visible,
+        };
+        setAliases((prev) =>
+          [...prev, newAlias].sort((a, b) =>
+            (a.pluralName || "").localeCompare(b.pluralName || ""),
+          ),
+        );
+        setValues((p) => ({ ...p, aliasId: alias.id }));
+        setShowNewAliasForm(false);
+        onAliasCreated?.(entryTypeId, newAlias);
+      } else {
+        addToast("Failed to create alias", "error");
+      }
+    } catch {
+      addToast("Failed to create alias", "error");
+    }
+    setSavingAlias(false);
+  };
 
   // Load aliases
   useEffect(() => {
@@ -645,7 +690,7 @@ export default function CreateEntryModal({
         </div>
 
         {/* Alias / subtype selector */}
-        {showAliasSelector && (
+        {showAliasSelector && !showNewAliasForm && (
           <div>
             <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Subtype (optional)</div>
             <SearchableCombobox<TargetAlias>
@@ -664,6 +709,39 @@ export default function CreateEntryModal({
               placeholder="No subtype…"
             />
           </div>
+        )}
+
+        {/* Inline new alias creation */}
+        {!fixedAliasId && entryType?.allowAliasCreation && !showNewAliasForm && (
+          <button
+            type="button"
+            onClick={() => setShowNewAliasForm(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#64748b",
+              fontSize: 12,
+              padding: "2px 0",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#64748b")}
+          >
+            <Icon name="plus" size={13} />
+            Create new alias…
+          </button>
+        )}
+        {showNewAliasForm && (
+          <NewAliasForm
+            defaultBgColor={entryType?.bgColor || "#1e293b"}
+            defaultFgColor={entryType?.fgColor || "#94a3b8"}
+            onSave={handleSaveNewAlias}
+            onCancel={() => setShowNewAliasForm(false)}
+            saving={savingAlias}
+          />
         )}
 
         {/* Dynamic fields for the selected entry type / alias */}

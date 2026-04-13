@@ -10,6 +10,7 @@ export interface EntryType {
   fgColor: string;
   sortOrder: number;
   isGroup?: boolean;
+  allowAliasCreation?: boolean;
   formLayout?: FormLayout;
 }
 

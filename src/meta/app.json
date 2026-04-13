@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 1, "dev": 18 },
+  "version": { "major": 1, "minor": 2, "dev": 0 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -125,6 +125,11 @@
         {
           "name": "isGroup",
           "description": "When true, this entry type is a grouping container and is not selectable in the navigation menu",
+          "type": "boolean"
+        },
+        {
+          "name": "allowAliasCreation",
+          "description": "When true, users can create new aliases on the fly when creating or editing entries of this type",
           "type": "boolean"
         },
         {
