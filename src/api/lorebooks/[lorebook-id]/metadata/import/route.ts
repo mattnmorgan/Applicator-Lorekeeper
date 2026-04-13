@@ -35,28 +35,41 @@ export async function POST(
     if (!canEdit(level)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-    if (!body.entryTypes || !Array.isArray(body.entryTypes)) {
-      return NextResponse.json({ error: "Invalid import data" }, { status: 400 });
+
+    if (body.version !== 2) {
+      return NextResponse.json(
+        { error: "Unsupported export format. Please re-export the lorebook to get an up-to-date file." },
+        { status: 400 }
+      );
+    }
+    if (!Array.isArray(body.entryTypes)) {
+      return NextResponse.json({ error: "Invalid import data: entryTypes missing" }, { status: 400 });
     }
 
     const rm = (t: string) => context.recordManager("lorekeeper", t);
-    const etTable = await rm("entry_type").getTable();
-    const secTable = await rm("entry_section").getTable();
-    const fieldTable = await rm("entry_field").getTable();
-    const relTable = await rm("related_list_item").getTable();
+    const etTable    = await rm("entry_type").getTable();
     const aliasTable = await rm("entry_type_alias").getTable();
+    const secTable   = await rm("entry_section").getTable();
+    const fieldTable = await rm("entry_field").getTable();
+    const relTable   = await rm("related_list_item").getTable();
 
-    // First pass: create all entry types (resolve parent refs after)
-    const nameToId: Record<string, string> = {};
-    const createdTypes: any[] = [];
+    // ID remapping maps — exported original ID → newly created ID.
+    // All four maps must be fully populated before any cross-type reference is used.
+    const typeIdMap:    Record<string, string> = {};
+    const aliasIdMap:   Record<string, string> = {};
+    const sectionIdMap: Record<string, string> = {};
+    const fieldIdMap:   Record<string, string> = {};
 
+    // Track created types for later passes
+    const createdTypes: Array<{ newId: string; source: any }> = [];
+
+    // Pass 1: Create all entry types (no parent or formLayout yet)
     for (const et of body.entryTypes) {
       const record = await rm("entry_type").createRecord(etTable, {
         lorebookId: params.lorebookId,
         singularName: et.singularName,
         pluralName: et.pluralName,
-        // sdkIcon is the new field name; fall back to old "icon" if it's not image data
-        icon: et.sdkIcon || (et.icon && !et.icon.startsWith("data:") ? et.icon : null) || "file",
+        icon: et.sdkIcon || "file",
         blurb: et.blurb || "",
         parentTypeId: "",
         bgColor: et.bgColor || "#334155",
@@ -65,166 +78,152 @@ export async function POST(
         isGroup: et.isGroup || false,
         allowAliasCreation: et.allowAliasCreation || false,
       });
-      nameToId[et.singularName] = record.id;
-      createdTypes.push({ record, source: et });
+      if (et.id) typeIdMap[et.id] = record.id;
+      createdTypes.push({ newId: record.id, source: et });
     }
 
-    // Resolve parent references
-    for (const { record, source } of createdTypes) {
-      if (source.parentTypeName && nameToId[source.parentTypeName]) {
-        await rm("entry_type").updateRecord(etTable, record.id, {
-          parentTypeId: nameToId[source.parentTypeName],
+    // Pass 2: Resolve parent type references (all types exist now)
+    for (const { newId, source } of createdTypes) {
+      if (source.parentTypeId && typeIdMap[source.parentTypeId]) {
+        await rm("entry_type").updateRecord(etTable, newId, {
+          parentTypeId: typeIdMap[source.parentTypeId],
         });
       }
     }
 
-    // Second pass: create sections, fields, and aliases per type
-    for (const { record: typeRecord, source } of createdTypes) {
-      const aliasIdMap: Record<string, string> = {};
-      const fieldIdMap: Record<string, string> = {};
-
-      // Create aliases and build old→new alias ID map
-      if (Array.isArray(source.aliases)) {
-        for (const alias of source.aliases) {
-          if (!alias.singularName?.trim() || !alias.pluralName?.trim()) continue;
-          const aliasRecord = await rm("entry_type_alias").createRecord(aliasTable, {
-            lorebookId: params.lorebookId,
-            entryTypeId: typeRecord.id,
-            singularName: alias.singularName.trim(),
-            pluralName: alias.pluralName.trim(),
-            bgColor: alias.bgColor || "#1e293b",
-            fgColor: alias.fgColor || "#94a3b8",
-            blurb: alias.blurb || "",
-            visible: alias.visible !== false,
-          });
-          if (alias.id) aliasIdMap[alias.id] = aliasRecord.id;
-        }
-      }
-
-      if (!source.sections) continue;
-
-      for (const sec of source.sections) {
-        // Remap alias IDs in section config
-        const remappedConfig = sec.config
-          ? { ...sec.config, aliasIds: (sec.config.aliasIds || []).map((id: string) => aliasIdMap[id] ?? id) }
-          : null;
-
-        const secRecord = await rm("entry_section").createRecord(secTable, {
+    // Pass 3: Create ALL aliases across all types before any fields are created.
+    // Fields and formLayouts can reference aliases from other entry types, so
+    // aliasIdMap must be complete before passes 4–7.
+    for (const { newId: typeNewId, source } of createdTypes) {
+      for (const alias of source.aliases ?? []) {
+        if (!alias.singularName?.trim() || !alias.pluralName?.trim()) continue;
+        const record = await rm("entry_type_alias").createRecord(aliasTable, {
           lorebookId: params.lorebookId,
-          entryTypeId: typeRecord.id,
+          entryTypeId: typeNewId,
+          singularName: alias.singularName.trim(),
+          pluralName: alias.pluralName.trim(),
+          bgColor: alias.bgColor || "#1e293b",
+          fgColor: alias.fgColor || "#94a3b8",
+          blurb: alias.blurb || "",
+          visible: alias.visible !== false,
+        });
+        if (alias.id) aliasIdMap[alias.id] = record.id;
+      }
+    }
+
+    // Pass 4: Create ALL sections across all types.
+    // Section config.aliasIds are remapped using the now-complete aliasIdMap.
+    for (const { newId: typeNewId, source } of createdTypes) {
+      const sorted = [...(source.sections ?? [])].sort(
+        (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+      for (const sec of sorted) {
+        const remappedConfig = sec.config
+          ? { ...sec.config, aliasIds: (sec.config.aliasIds ?? []).map((id: string) => aliasIdMap[id] ?? id) }
+          : null;
+        const record = await rm("entry_section").createRecord(secTable, {
+          lorebookId: params.lorebookId,
+          entryTypeId: typeNewId,
           name: sec.name,
           sectionType: sec.sectionType,
           sortOrder: sec.sortOrder ?? 0,
           config: remappedConfig,
         });
+        if (sec.id) sectionIdMap[sec.id] = record.id;
+      }
+    }
 
-        if (sec.fields) {
-          for (const field of sec.fields) {
-            let config = field.config || {};
+    // Pass 5: Create ALL fields across all types.
+    // Each field's sectionId is remapped via sectionIdMap.
+    // field.aliasIds and lookup config IDs are remapped via aliasIdMap / typeIdMap.
+    for (const { newId: typeNewId, source } of createdTypes) {
+      const sorted = [...(source.fields ?? [])].sort(
+        (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+      for (const field of sorted) {
+        let config = { ...(field.config ?? {}) };
 
-            // Resolve lookup targetEntryTypeNames → IDs
-            if (field.fieldType === "lookup" && Array.isArray(config.targetEntryTypeNames)) {
-              const resolvedIds = config.targetEntryTypeNames
-                .map((name: string) => nameToId[name])
-                .filter(Boolean);
-              config = {
-                ...config,
-                targetEntryTypeIds: resolvedIds,
-                targetEntryTypeNames: undefined,
-              };
-              delete config.targetEntryTypeNames;
-            }
-
-            const fieldRecord = await rm("entry_field").createRecord(fieldTable, {
-              lorebookId: params.lorebookId,
-              entryTypeId: typeRecord.id,
-              sectionId: secRecord.id,
-              name: field.name,
-              fieldType: field.fieldType,
-              config,
-              aliasIds: (field.aliasIds || []).map((id: string) => aliasIdMap[id] ?? id),
-              required: field.required || false,
-              tooltip: field.tooltip || "",
-              sortOrder: field.sortOrder ?? 0,
-            });
-            if (field.id) fieldIdMap[field.id] = fieldRecord.id;
+        if (field.fieldType === "lookup") {
+          if (Array.isArray(config.targetEntryTypeIds)) {
+            config.targetEntryTypeIds = config.targetEntryTypeIds.map(
+              (id: string) => typeIdMap[id] ?? id
+            );
+          }
+          if (Array.isArray(config.targetAliasIds)) {
+            config.targetAliasIds = config.targetAliasIds.map(
+              (id: string) => aliasIdMap[id] ?? id
+            );
           }
         }
-      }
 
-      // Remap and apply formLayout now that both alias and field ID maps are complete
-      if (source.formLayout) {
-        const remappedLayout = remapFormLayout(source.formLayout, aliasIdMap, fieldIdMap);
-        await rm("entry_type").updateRecord(etTable, typeRecord.id, { formLayout: remappedLayout });
+        const record = await rm("entry_field").createRecord(fieldTable, {
+          lorebookId: params.lorebookId,
+          entryTypeId: typeNewId,
+          sectionId: field.sectionId ? (sectionIdMap[field.sectionId] ?? "") : "",
+          name: field.name,
+          fieldType: field.fieldType,
+          config,
+          aliasIds: (field.aliasIds ?? []).map((id: string) => aliasIdMap[id] ?? id),
+          required: field.required ?? false,
+          tooltip: field.tooltip ?? "",
+          sortOrder: field.sortOrder ?? 0,
+        });
+        if (field.id) fieldIdMap[field.id] = record.id;
       }
     }
 
-    // Third pass: resolve related list items (need all field IDs)
-    for (const { record: typeRecord, source } of createdTypes) {
-      if (!source.sections) continue;
-      for (const sec of source.sections) {
-        if (sec.sectionType !== "related_list" || !sec.relatedItems) continue;
-
-        // Find the created section record
-        const secResult = await rm("entry_section").readRecords({
-          filters: [
-            { field: "lorebookId", operator: "=", value: params.lorebookId },
-            { field: "entryTypeId", operator: "=", value: typeRecord.id },
-            { field: "name", operator: "=", value: sec.name },
-          ],
-          condition: "1 AND 2 AND 3",
-          limit: 1,
-        });
-        if (secResult.records.length === 0) continue;
-        const secId = secResult.records[0].id;
-
-        for (const ri of sec.relatedItems) {
-          const refTypeId = nameToId[ri.entryTypeName];
-          if (!refTypeId) continue;
-
-          // Find the field in the referenced type by name
-          const fieldResult = await rm("entry_field").readRecords({
-            filters: [
-              { field: "lorebookId", operator: "=", value: params.lorebookId },
-              { field: "entryTypeId", operator: "=", value: refTypeId },
-              { field: "name", operator: "=", value: ri.fieldName },
-            ],
-            condition: "1 AND 2 AND 3",
-            limit: 1,
-          });
-          if (fieldResult.records.length === 0) continue;
-
+    // Pass 6: Create related list items (all maps are now complete)
+    for (const { source } of createdTypes) {
+      for (const sec of source.sections ?? []) {
+        if (sec.sectionType !== "related_list") continue;
+        const newSecId = sectionIdMap[sec.id];
+        if (!newSecId) continue;
+        for (const ri of sec.relatedItems ?? []) {
+          const newTypeId  = typeIdMap[ri.entryTypeId];
+          const newFieldId = fieldIdMap[ri.fieldId];
+          if (!newTypeId || !newFieldId) continue;
           await rm("related_list_item").createRecord(relTable, {
             lorebookId: params.lorebookId,
-            sectionId: secId,
-            entryTypeId: refTypeId,
-            fieldId: fieldResult.records[0].id,
+            sectionId: newSecId,
+            entryTypeId: newTypeId,
+            fieldId: newFieldId,
           });
         }
       }
     }
 
-    // Restore lorebook icon — accepts new field name "icon" or old "lorebookIconBase64"
-    const lorebookIconData = body.icon || body.lorebookIconBase64;
+    // Pass 7: Apply form layouts (aliasIdMap and fieldIdMap are both fully populated)
+    for (const { newId, source } of createdTypes) {
+      if (!source.formLayout) continue;
+      const remapped = remapFormLayout(source.formLayout, aliasIdMap, fieldIdMap);
+      await rm("entry_type").updateRecord(etTable, newId, { formLayout: remapped });
+    }
+
+    // Restore lorebook icon (field name "lorebook.icon" in v2, fallbacks for old formats)
+    const lorebookIconData = body.lorebook?.icon || body.icon || body.lorebookIconBase64;
     if (lorebookIconData) {
       try {
-        const iconPath = lorebookIconPath(params.lorebookId);
-        await saveIconFromDataUrl(context.appFileManager, iconPath, lorebookIconData);
-        const lorebooks = context.recordManager("lorekeeper", "lorebook");
-        const lorebookTable = await lorebooks.getTable();
-        await lorebooks.updateRecord(lorebookTable, params.lorebookId, { hasIcon: true });
+        await saveIconFromDataUrl(
+          context.appFileManager,
+          lorebookIconPath(params.lorebookId),
+          lorebookIconData
+        );
+        const lbTable = await rm("lorebook").getTable();
+        await rm("lorebook").updateRecord(lbTable, params.lorebookId, { hasIcon: true });
       } catch {}
     }
 
-    // Restore entry type icons — accepts new field "icon" (data URL) or old "iconBase64"
-    for (const { record: typeRecord, source } of createdTypes) {
-      const iconData = (source.icon && source.icon.startsWith("data:")) ? source.icon : source.iconBase64;
+    // Restore entry type icons
+    for (const { newId, source } of createdTypes) {
+      const iconData = source.icon?.startsWith("data:") ? source.icon : null;
       if (iconData) {
         try {
-          const iconPath = entryTypeIconPath(params.lorebookId, typeRecord.id);
-          await saveIconFromDataUrl(context.appFileManager, iconPath, iconData);
-          const table = await rm("entry_type").getTable();
-          await rm("entry_type").updateRecord(table, typeRecord.id, { hasIcon: true });
+          await saveIconFromDataUrl(
+            context.appFileManager,
+            entryTypeIconPath(params.lorebookId, newId),
+            iconData
+          );
+          await rm("entry_type").updateRecord(etTable, newId, { hasIcon: true });
         } catch {}
       }
     }

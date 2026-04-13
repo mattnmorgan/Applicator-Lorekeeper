@@ -1,6 +1,7 @@
 "use client";
 
-import { Button } from "@applicator/sdk/components";
+import { useState } from "react";
+import { Button, Spinner } from "@applicator/sdk/components";
 
 interface Props {
   lorebookId: string;
@@ -10,6 +11,8 @@ interface Props {
 }
 
 export default function ExportImportTab({ lorebookId, lorebookName, addToast, onImported }: Props) {
+  const [importing, setImporting] = useState(false);
+
   const handleExport = async () => {
     const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/metadata/export`);
     if (res.ok) {
@@ -34,6 +37,7 @@ export default function ExportImportTab({ lorebookId, lorebookName, addToast, on
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      setImporting(true);
       try {
         const text = await file.text();
         const data = JSON.parse(text);
@@ -51,12 +55,31 @@ export default function ExportImportTab({ lorebookId, lorebookName, addToast, on
         }
       } catch {
         addToast("Invalid JSON file", "error");
+      } finally {
+        setImporting(false);
       }
     };
     input.click();
   };
 
   return (
+    <>
+    {importing && (
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.8)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+        zIndex: 1000,
+      }}>
+        <Spinner size={40} />
+        <span style={{ color: "#94a3b8", fontSize: 14 }}>Importing metadata...</span>
+      </div>
+    )}
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div>
         <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>Export Metadata</div>
@@ -78,5 +101,6 @@ export default function ExportImportTab({ lorebookId, lorebookName, addToast, on
         <Button variant="secondary" onClick={handleImport}>Import metadata JSON</Button>
       </div>
     </div>
+    </>
   );
 }
