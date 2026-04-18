@@ -13,6 +13,7 @@ import {
   RichTextEditor,
 } from "@applicator/sdk/components";
 import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
+import { SinglePicklistInput, MultiPicklistInput, resolvePicklistValue } from "./PicklistInput";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -434,6 +435,24 @@ export default function CreateEntryModal({
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const handleCustomPicklistOption = async (field: EntryField, computedValue: string, label: string) => {
+    const existing: Array<{ value: string; label: string }> = field.config?.options || [];
+    if (existing.some((o) => o.value === computedValue)) return;
+    const updatedOptions = [...existing, { value: computedValue, label }];
+    const updatedConfig = { ...field.config, options: updatedOptions };
+    setFields((prev) =>
+      prev.map((f) => f.id === field.id ? { ...f, config: updatedConfig } : f),
+    );
+    await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields/${field.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: updatedConfig }),
+      },
+    );
+  };
+
   const setFieldValue = (fieldId: string, value: any) => {
     setFieldData((p) => ({ ...p, [fieldId]: value }));
   };
@@ -505,11 +524,33 @@ export default function CreateEntryModal({
         a.label.localeCompare(b.label),
       );
       if (cfg.multiselect) {
+        if (cfg.allowCustom) {
+          return (
+            <MultiPicklistInput
+              options={opts}
+              value={Array.isArray(value) ? value : value ? [value] : []}
+              onChange={(v) => setFieldValue(field.id, v)}
+              resolveCustomValue={(label) => resolvePicklistValue(label, new Set(opts.map((o) => o.value)))}
+              onCustomAdded={(computed, label) => handleCustomPicklistOption(field, computed, label)}
+            />
+          );
+        }
         return (
           <DynamicInput
             input={{ id: field.id, label: "", type: "badge-multiselect", options: opts }}
             value={Array.isArray(value) ? value : value ? [value] : []}
             onChange={(_, v) => setFieldValue(field.id, v)}
+          />
+        );
+      }
+      if (cfg.allowCustom) {
+        return (
+          <SinglePicklistInput
+            options={opts}
+            value={value || ""}
+            onChange={(v) => setFieldValue(field.id, v)}
+            resolveCustomValue={(label) => resolvePicklistValue(label, new Set(opts.map((o) => o.value)))}
+            onCustomAdded={(computed, label) => handleCustomPicklistOption(field, computed, label)}
           />
         );
       }

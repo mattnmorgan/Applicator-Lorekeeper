@@ -17,6 +17,7 @@ import {
 } from "@applicator/sdk/components";
 import CreateEntryModal from "./CreateEntryModal";
 import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
+import { SinglePicklistInput, MultiPicklistInput, resolvePicklistValue } from "./PicklistInput";
 import PrintModal from "./PrintModal";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
 
@@ -498,6 +499,24 @@ export default function EntryRecordView({
     }));
   };
 
+  const handleCustomPicklistOption = async (field: EntryField, computedValue: string, label: string) => {
+    const existing: Array<{ value: string; label: string }> = field.config?.options || [];
+    if (existing.some((o) => o.value === computedValue)) return;
+    const updatedOptions = [...existing, { value: computedValue, label }];
+    const updatedConfig = { ...field.config, options: updatedOptions };
+    setFields((prev) =>
+      prev.map((f) => f.id === field.id ? { ...f, config: updatedConfig } : f),
+    );
+    await fetch(
+      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields/${field.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: updatedConfig }),
+      },
+    );
+  };
+
   // ── Field rendering ───────────────────────────────────────────────────────
 
   const renderFieldValue = (field: EntryField, value: any) => {
@@ -744,6 +763,17 @@ export default function EntryRecordView({
         ...(cfg.options || []),
       ].sort((a: any, b: any) => a.label.localeCompare(b.label));
       if (cfg.multiselect) {
+        if (cfg.allowCustom) {
+          return (
+            <MultiPicklistInput
+              options={opts}
+              value={Array.isArray(value) ? value : value ? [value] : []}
+              onChange={(v) => setFieldValue(field.id, v)}
+              resolveCustomValue={(label) => resolvePicklistValue(label, new Set(opts.map((o) => o.value)))}
+              onCustomAdded={(computed, label) => handleCustomPicklistOption(field, computed, label)}
+            />
+          );
+        }
         return (
           <DynamicInput
             input={{
@@ -754,6 +784,17 @@ export default function EntryRecordView({
             }}
             value={Array.isArray(value) ? value : value ? [value] : []}
             onChange={(_, v) => setFieldValue(field.id, v)}
+          />
+        );
+      }
+      if (cfg.allowCustom) {
+        return (
+          <SinglePicklistInput
+            options={opts}
+            value={value || ""}
+            onChange={(v) => setFieldValue(field.id, v)}
+            resolveCustomValue={(label) => resolvePicklistValue(label, new Set(opts.map((o) => o.value)))}
+            onCustomAdded={(computed, label) => handleCustomPicklistOption(field, computed, label)}
           />
         );
       }
@@ -1256,6 +1297,9 @@ export default function EntryRecordView({
               if (field.fieldType === "lookup") return renderFieldEditor(field);
               // Number fields with a unit need custom editing UI to show the unit alongside the input
               if (field.fieldType === "number" && field.config?.unit)
+                return renderFieldEditor(field);
+              // Picklists with allowCustom need custom editing UI regardless of inputDef
+              if (field.fieldType === "picklist" && field.config?.allowCustom)
                 return renderFieldEditor(field);
               // If no inputDef is configured yet, fall back to manual rendering
               if (!getColInputDef(f.id)) return renderFieldEditor(field);

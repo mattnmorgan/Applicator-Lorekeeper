@@ -173,13 +173,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [relatedTypeId, setRelatedTypeId] = useState("");
   const [relatedFieldId, setRelatedFieldId] = useState("");
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
-  const [relatedTypeLookupCounts, setRelatedTypeLookupCounts] = useState<Record<string, number>>({});
+  const [relatedTypeLookupCounts, setRelatedTypeLookupCounts] = useState<
+    Record<string, number>
+  >({});
   const [renamingRelSecId, setRenamingRelSecId] = useState<string | null>(null);
   const [relSecRenameValue, setRelSecRenameValue] = useState("");
-  const [editingRelSecAliasSecId, setEditingRelSecAliasSecId] = useState<string | null>(null);
+  const [editingRelSecAliasSecId, setEditingRelSecAliasSecId] = useState<
+    string | null
+  >(null);
   const [editRelSecAliasIds, setEditRelSecAliasIds] = useState<string[]>([]);
-  const [lookupTargetAliasOptions, setLookupTargetAliasOptions] = useState<EntryTypeAlias[]>([]);
-  const [editingFieldTargetAliases, setEditingFieldTargetAliases] = useState<EntryTypeAlias[]>([]);
+  const [lookupTargetAliasOptions, setLookupTargetAliasOptions] = useState<
+    EntryTypeAlias[]
+  >([]);
+  const [editingFieldTargetAliases, setEditingFieldTargetAliases] = useState<
+    EntryTypeAlias[]
+  >([]);
 
   // Per-type icon version for cache-busting after upload
   const [typeIconVersions, setTypeIconVersions] = useState<
@@ -230,7 +238,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       if (res.ok) {
         const { aliases: updated } = await res.json();
         setAliases(
-          updated.sort((a: any, b: any) => a.pluralName.localeCompare(b.pluralName)),
+          updated.sort((a: any, b: any) =>
+            a.pluralName.localeCompare(b.pluralName),
+          ),
         );
         addToast("All aliases updated to match entry type colors");
       } else {
@@ -472,7 +482,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: aliases.map((a) => a.id), visible: targetVisible }),
+        body: JSON.stringify({
+          ids: aliases.map((a) => a.id),
+          visible: targetVisible,
+        }),
       },
     );
     if (!res.ok) addToast("Failed to update aliases", "error");
@@ -560,7 +573,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     setEditingField(field);
     const cfg = (field.config || {}) as any;
     setEditFieldValues({
-      options: cfg.options ? [...cfg.options].sort((a: any, b: any) => a.label.localeCompare(b.label)) : [],
+      options: cfg.options
+        ? [...cfg.options].sort((a: any, b: any) =>
+            a.label.localeCompare(b.label),
+          )
+        : [],
       multiselect: cfg.multiselect,
       allowCustom: cfg.allowCustom,
       required: !!field.required,
@@ -579,16 +596,23 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       targetAliasIds: (cfg.targetAliasIds || []) as string[],
     });
     if (field.fieldType === "lookup") {
-      const targetTypeIds: string[] = (field.config as any)?.targetEntryTypeIds || [];
+      const targetTypeIds: string[] =
+        (field.config as any)?.targetEntryTypeIds || [];
       if (targetTypeIds.length > 0) {
         const results: EntryTypeAlias[] = [];
-        await Promise.all(targetTypeIds.map(async (tid) => {
-          try {
-            const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
-            if (r.ok) results.push(...((await r.json()).aliases || []));
-          } catch {}
-        }));
-        setEditingFieldTargetAliases(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+        await Promise.all(
+          targetTypeIds.map(async (tid) => {
+            try {
+              const r = await fetch(
+                `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`,
+              );
+              if (r.ok) results.push(...((await r.json()).aliases || []));
+            } catch {}
+          }),
+        );
+        setEditingFieldTargetAliases(
+          results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)),
+        );
       } else setEditingFieldTargetAliases([]);
     }
     if (field.fieldType === "picklist" && activeTypeId) {
@@ -657,7 +681,6 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     } else addToast("Failed to update field", "error");
   };
 
-
   // ── Form layout ─────────────────────────────────────────────────────────────
 
   const saveFormLayout = (typeId: string, layout: FormLayout) => {
@@ -711,7 +734,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     } else addToast("Failed to create section", "error");
   };
 
-  const handleUpdateRelSecAliases = async (sectionId: string, aliasIds: string[]) => {
+  const handleUpdateRelSecAliases = async (
+    sectionId: string,
+    aliasIds: string[],
+  ) => {
     if (!activeTypeId) return;
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${sectionId}`,
@@ -723,14 +749,19 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     );
     if (res.ok) {
       setSections((prev) =>
-        prev.map((s) => s.id === sectionId ? { ...s, config: { ...s.config, aliasIds } } : s),
+        prev.map((s) =>
+          s.id === sectionId ? { ...s, config: { ...s.config, aliasIds } } : s,
+        ),
       );
       setEditingRelSecAliasSecId(null);
       addToast("Section visibility updated");
     } else addToast("Failed to update section", "error");
   };
 
-  const handleRenameRelatedSection = async (sectionId: string, newName: string) => {
+  const handleRenameRelatedSection = async (
+    sectionId: string,
+    newName: string,
+  ) => {
     if (!activeTypeId || !newName.trim()) return;
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/sections/${sectionId}`,
@@ -741,7 +772,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       },
     );
     if (res.ok) {
-      setSections((prev) => prev.map((s) => s.id === sectionId ? { ...s, name: newName.trim() } : s));
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === sectionId ? { ...s, name: newName.trim() } : s,
+        ),
+      );
       setRenamingRelSecId(null);
     } else addToast("Failed to rename section", "error");
   };
@@ -825,7 +860,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       }),
     ).then((results) => {
       const counts: Record<string, number> = {};
-      results.forEach(([typeId, count]) => { counts[typeId] = count; });
+      results.forEach(([typeId, count]) => {
+        counts[typeId] = count;
+      });
       setRelatedTypeLookupCounts(counts);
     });
   }, [relatedSecId]);
@@ -1270,25 +1307,55 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               onSave={(v) => handleUpdateType("pluralName", v)}
                             />
                             <div>
-                              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#64748b",
+                                  marginBottom: 4,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
                                 Group
                                 <InfoTooltip text="Group types are not selectable in the navigation menu. Use them to organise child entry types hierarchically." />
                               </div>
                               <DynamicInput
-                                input={{ id: "isGroup", label: "", type: "toggle" }}
+                                input={{
+                                  id: "isGroup",
+                                  label: "",
+                                  type: "toggle",
+                                }}
                                 value={!!activeType.isGroup}
-                                onChange={(_, v) => handleUpdateType("isGroup", v)}
+                                onChange={(_, v) =>
+                                  handleUpdateType("isGroup", v)
+                                }
                               />
                             </div>
                             <div>
-                              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#64748b",
+                                  marginBottom: 4,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
                                 Allow alias creation
                                 <InfoTooltip text="When enabled, users can create new aliases on the fly from the create and edit entry experience." />
                               </div>
                               <DynamicInput
-                                input={{ id: "allowAliasCreation", label: "", type: "toggle" }}
+                                input={{
+                                  id: "allowAliasCreation",
+                                  label: "",
+                                  type: "toggle",
+                                }}
                                 value={!!activeType.allowAliasCreation}
-                                onChange={(_, v) => handleUpdateType("allowAliasCreation", v)}
+                                onChange={(_, v) =>
+                                  handleUpdateType("allowAliasCreation", v)
+                                }
                               />
                             </div>
                           </div>
@@ -1396,7 +1463,13 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               >
                                 Preview
                               </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
                                 <span
                                   style={{
                                     fontSize: 12,
@@ -1463,8 +1536,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             <div style={{ display: "flex", gap: 4 }}>
                               {aliases.length > 0 && (
                                 <ButtonIcon
-                                  name={aliases.some((a) => a.visible !== false) ? "eye-off" : "eye"}
-                                  label={aliases.some((a) => a.visible !== false) ? "Make all invisible" : "Make all visible"}
+                                  name={
+                                    aliases.some((a) => a.visible !== false)
+                                      ? "eye-off"
+                                      : "eye"
+                                  }
+                                  label={
+                                    aliases.some((a) => a.visible !== false)
+                                      ? "Make all invisible"
+                                      : "Make all visible"
+                                  }
                                   size="sm"
                                   onClick={handleToggleAllAliasVisibility}
                                 />
@@ -1641,7 +1722,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 <Tooltip text="Visible" placement="top">
                                   <div>
                                     <DynamicInput
-                                      input={{ id: "visible", label: "", type: "toggle" }}
+                                      input={{
+                                        id: "visible",
+                                        label: "",
+                                        type: "toggle",
+                                      }}
                                       value={editingAlias.visible !== false}
                                       onChange={(_, v) =>
                                         setEditingAlias({
@@ -1677,14 +1762,24 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             ) : (
                               <>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 12, color: "#e2e8f0" }}>
+                                  <div
+                                    style={{ fontSize: 12, color: "#e2e8f0" }}
+                                  >
                                     {alias.pluralName}{" "}
                                     <span style={{ color: "#64748b" }}>
                                       / {alias.singularName}
                                     </span>
                                   </div>
                                   {alias.blurb && (
-                                    <div style={{ fontSize: 11, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#64748b",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
                                       {alias.blurb}
                                     </div>
                                   )}
@@ -1710,11 +1805,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                       {alias.singularName}
                                     </span>
                                     <ButtonIcon
-                                      name={alias.visible === false ? "eye-off" : "eye"}
-                                      label={alias.visible === false ? "Make visible" : "Make invisible"}
+                                      name={
+                                        alias.visible === false
+                                          ? "eye-off"
+                                          : "eye"
+                                      }
+                                      label={
+                                        alias.visible === false
+                                          ? "Make visible"
+                                          : "Make invisible"
+                                      }
                                       size="sm"
                                       onClick={() =>
-                                        handleUpdateAlias(alias, { visible: alias.visible === false })
+                                        handleUpdateAlias(alias, {
+                                          visible: alias.visible === false,
+                                        })
                                       }
                                     />
                                     <ButtonIcon
@@ -1805,84 +1910,109 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           No fields yet
                         </div>
                       )}
-                      {[...fields].sort((a, b) => a.name.localeCompare(b.name)).map((field) => (
-                        <div
-                          key={field.id}
-                          style={{
-                            background: "#1e293b",
-                            borderRadius: 8,
-                            padding: "10px 12px 0",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                          }}
-                        >
+                      {[...fields]
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((field) => (
                           <div
+                            key={field.id}
                             style={{
+                              background: "#1e293b",
+                              borderRadius: 8,
+                              padding: "5px 12px",
                               display: "flex",
-                              alignItems: "center",
+                              flexDirection: "column",
                               gap: 8,
+                              transition: "background 0.1s",
                             }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#263348")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "#1e293b")
+                            }
                           >
-                            <span
+                            <div
                               style={{
-                                flex: 1,
-                                fontSize: 13,
-                                color: "#e2e8f0",
-                                fontWeight: 500,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
                               }}
                             >
-                              {field.name}
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontSize: 13,
+                                  color: "#e2e8f0",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {field.name}
+                                {field.required && (
+                                  <span
+                                    style={{ color: "#f87171", marginLeft: 3 }}
+                                  >
+                                    *
+                                  </span>
+                                )}
+                              </span>
                               {field.required && (
                                 <span
-                                  style={{ color: "#f87171", marginLeft: 3 }}
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#fca5a5",
+                                    background: "#450a0a",
+                                    padding: "2px 7px",
+                                    borderRadius: 4,
+                                  }}
                                 >
-                                  *
+                                  Required
                                 </span>
                               )}
-                            </span>
-                            {field.required && (
-                              <span style={{ fontSize: 11, color: "#fca5a5", background: "#450a0a", padding: "2px 7px", borderRadius: 4 }}>
-                                Required
+                              {(field.aliasIds?.length ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#93c5fd",
+                                    background: "#172554",
+                                    padding: "2px 7px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  Restricted
+                                </span>
+                              )}
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: "#94a3b8",
+                                  background: "#0f172a",
+                                  padding: "2px 7px",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                {FIELD_TYPE_LABELS[field.fieldType] ||
+                                  field.fieldType}
                               </span>
-                            )}
-                            {(field.aliasIds?.length ?? 0) > 0 && (
-                              <span style={{ fontSize: 11, color: "#93c5fd", background: "#172554", padding: "2px 7px", borderRadius: 4 }}>
-                                Restricted
-                              </span>
-                            )}
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: "#94a3b8",
-                                background: "#0f172a",
-                                padding: "2px 7px",
-                                borderRadius: 4,
-                              }}
-                            >
-                              {FIELD_TYPE_LABELS[field.fieldType] ||
-                                field.fieldType}
-                            </span>
-                            {canEdit && (
-                              <ButtonIcon
-                                name="edit"
-                                label="Edit field"
-                                size="sm"
-                                onClick={() => openEditField(field)}
-                              />
-                            )}
-                            {canEdit && (
-                              <ButtonIcon
-                                name="trash"
-                                label="Delete field"
-                                subvariant="danger"
-                                size="sm"
-                                onClick={() => handleDeleteField(field.id)}
-                              />
-                            )}
+                              {canEdit && (
+                                <ButtonIcon
+                                  name="edit"
+                                  label="Edit field"
+                                  size="sm"
+                                  onClick={() => openEditField(field)}
+                                />
+                              )}
+                              {canEdit && (
+                                <ButtonIcon
+                                  name="trash"
+                                  label="Delete field"
+                                  subvariant="danger"
+                                  size="sm"
+                                  onClick={() => handleDeleteField(field.id)}
+                                />
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
 
@@ -1980,169 +2110,228 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           No related sections yet
                         </div>
                       )}
-                      {[...sections].sort((a, b) => a.name.localeCompare(b.name)).map((sec) => (
-                        <div
-                          key={sec.id}
-                          style={{
-                            background: "#1e293b",
-                            borderRadius: 8,
-                            padding: "10px 12px",
-                          }}
-                        >
+                      {[...sections]
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((sec) => (
                           <div
+                            key={sec.id}
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              marginBottom: 8,
+                              background: "#1e293b",
+                              borderRadius: 8,
+                              padding: "10px 12px",
                             }}
                           >
-                            {canEdit && renamingRelSecId === sec.id ? (
-                              <>
-                                <input
-                                  autoFocus
-                                  value={relSecRenameValue}
-                                  onChange={(e) => setRelSecRenameValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleRenameRelatedSection(sec.id, relSecRenameValue);
-                                    if (e.key === "Escape") setRenamingRelSecId(null);
-                                  }}
-                                  style={{ flex: 1, fontSize: 13, fontWeight: 600, background: "#0f172a", border: "1px solid #3b82f6", borderRadius: 5, padding: "2px 7px", color: "#f1f5f9", outline: "none" }}
-                                />
-                                <ButtonIcon name="check" label="Save name" size="sm" onClick={() => handleRenameRelatedSection(sec.id, relSecRenameValue)} />
-                                <ButtonIcon name="close" label="Cancel" size="sm" onClick={() => setRenamingRelSecId(null)} />
-                              </>
-                            ) : (
-                              <>
-                                <span
-                                  style={{
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: "#f1f5f9",
-                                  }}
-                                >
-                                  {sec.name}
-                                </span>
-                                {(sec.config?.aliasIds?.length ?? 0) > 0 && (
-                                  <span style={{ fontSize: 11, color: "#93c5fd", background: "#172554", padding: "2px 7px", borderRadius: 4 }}>
-                                    Restricted
-                                  </span>
-                                )}
-                                <span style={{ flex: 1 }} />
-                                {canEdit && aliases.length > 0 && (
-                                  <ButtonIcon
-                                    name="users"
-                                    label="Edit alias restriction"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingRelSecAliasSecId(sec.id);
-                                      setEditRelSecAliasIds(sec.config?.aliasIds || []);
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                marginBottom: 8,
+                              }}
+                            >
+                              {canEdit && renamingRelSecId === sec.id ? (
+                                <>
+                                  <input
+                                    autoFocus
+                                    value={relSecRenameValue}
+                                    onChange={(e) =>
+                                      setRelSecRenameValue(e.target.value)
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter")
+                                        handleRenameRelatedSection(
+                                          sec.id,
+                                          relSecRenameValue,
+                                        );
+                                      if (e.key === "Escape")
+                                        setRenamingRelSecId(null);
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                      background: "#0f172a",
+                                      border: "1px solid #3b82f6",
+                                      borderRadius: 5,
+                                      padding: "2px 7px",
+                                      color: "#f1f5f9",
+                                      outline: "none",
                                     }}
                                   />
-                                )}
-                                {canEdit && (
                                   <ButtonIcon
-                                    name="edit"
-                                    label="Rename section"
-                                    size="sm"
-                                    onClick={() => { setRenamingRelSecId(sec.id); setRelSecRenameValue(sec.name); }}
-                                  />
-                                )}
-                              </>
-                            )}
-                            {canEdit && renamingRelSecId !== sec.id && (
-                              <ButtonIcon
-                                name="trash"
-                                label="Delete section"
-                                subvariant="danger"
-                                size="sm"
-                                onClick={() => handleDeleteRelatedSection(sec)}
-                              />
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 4,
-                            }}
-                          >
-                            {[...(relatedBySec[sec.id] || [])].sort((a, b) => {
-                                const tn = a.entryTypeName.localeCompare(b.entryTypeName);
-                                return tn !== 0 ? tn : a.fieldName.localeCompare(b.fieldName);
-                              }).map((item) => (
-                              <div
-                                key={item.id}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  padding: "4px 8px",
-                                  background: "#0f172a",
-                                  borderRadius: 6,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    fontSize: 12,
-                                    color: "#e2e8f0",
-                                  }}
-                                >
-                                  {item.entryTypeName}{" "}
-                                  <span style={{ color: "#64748b" }}>via</span>{" "}
-                                  {item.fieldName}
-                                </span>
-                                {canEdit && (
-                                  <ButtonIcon
-                                    name="trash"
-                                    label="Remove pairing"
-                                    subvariant="danger"
+                                    name="check"
+                                    label="Save name"
                                     size="sm"
                                     onClick={() =>
-                                      handleRemoveRelated(sec.id, item.id)
+                                      handleRenameRelatedSection(
+                                        sec.id,
+                                        relSecRenameValue,
+                                      )
                                     }
                                   />
-                                )}
-                              </div>
-                            ))}
-                            {canEdit && (
-                              <button
-                                onClick={() => {
-                                  setRelatedSecId(sec.id);
-                                  setRelatedTypeId("");
-                                  setRelatedFieldId("");
-                                  setRelatedTypeFields([]);
-                                }}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 5,
-                                  padding: "4px 8px",
-                                  background: "transparent",
-                                  border: "1px dashed #334155",
-                                  borderRadius: 5,
-                                  color: "#64748b",
-                                  fontSize: 12,
-                                  cursor: "pointer",
-                                  transition: "all 0.12s",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.borderColor = "#3b82f6";
-                                  e.currentTarget.style.color = "#93c5fd";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.borderColor = "#334155";
-                                  e.currentTarget.style.color = "#64748b";
-                                }}
-                              >
-                                <Icon name="plus" size={12} /> Add Entry Type
-                                Pairing
-                              </button>
-                            )}
+                                  <ButtonIcon
+                                    name="close"
+                                    label="Cancel"
+                                    size="sm"
+                                    onClick={() => setRenamingRelSecId(null)}
+                                  />
+                                </>
+                              ) : (
+                                <>
+                                  <span
+                                    style={{
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                      color: "#f1f5f9",
+                                    }}
+                                  >
+                                    {sec.name}
+                                  </span>
+                                  {(sec.config?.aliasIds?.length ?? 0) > 0 && (
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#93c5fd",
+                                        background: "#172554",
+                                        padding: "2px 7px",
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      Restricted
+                                    </span>
+                                  )}
+                                  <span style={{ flex: 1 }} />
+                                  {canEdit && aliases.length > 0 && (
+                                    <ButtonIcon
+                                      name="users"
+                                      label="Edit alias restriction"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingRelSecAliasSecId(sec.id);
+                                        setEditRelSecAliasIds(
+                                          sec.config?.aliasIds || [],
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                  {canEdit && (
+                                    <ButtonIcon
+                                      name="edit"
+                                      label="Rename section"
+                                      size="sm"
+                                      onClick={() => {
+                                        setRenamingRelSecId(sec.id);
+                                        setRelSecRenameValue(sec.name);
+                                      }}
+                                    />
+                                  )}
+                                </>
+                              )}
+                              {canEdit && renamingRelSecId !== sec.id && (
+                                <ButtonIcon
+                                  name="trash"
+                                  label="Delete section"
+                                  subvariant="danger"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleDeleteRelatedSection(sec)
+                                  }
+                                />
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                              }}
+                            >
+                              {[...(relatedBySec[sec.id] || [])]
+                                .sort((a, b) => {
+                                  const tn = a.entryTypeName.localeCompare(
+                                    b.entryTypeName,
+                                  );
+                                  return tn !== 0
+                                    ? tn
+                                    : a.fieldName.localeCompare(b.fieldName);
+                                })
+                                .map((item) => (
+                                  <div
+                                    key={item.id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 8,
+                                      padding: "4px 8px",
+                                      background: "#0f172a",
+                                      borderRadius: 6,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        flex: 1,
+                                        fontSize: 12,
+                                        color: "#e2e8f0",
+                                      }}
+                                    >
+                                      {item.entryTypeName}{" "}
+                                      <span style={{ color: "#64748b" }}>
+                                        via
+                                      </span>{" "}
+                                      {item.fieldName}
+                                    </span>
+                                    {canEdit && (
+                                      <ButtonIcon
+                                        name="trash"
+                                        label="Remove pairing"
+                                        subvariant="danger"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleRemoveRelated(sec.id, item.id)
+                                        }
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              {canEdit && (
+                                <button
+                                  onClick={() => {
+                                    setRelatedSecId(sec.id);
+                                    setRelatedTypeId("");
+                                    setRelatedFieldId("");
+                                    setRelatedTypeFields([]);
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "4px 8px",
+                                    background: "transparent",
+                                    border: "1px dashed #334155",
+                                    borderRadius: 5,
+                                    color: "#64748b",
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                    transition: "all 0.12s",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor =
+                                      "#3b82f6";
+                                    e.currentTarget.style.color = "#93c5fd";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor =
+                                      "#334155";
+                                    e.currentTarget.style.color = "#64748b";
+                                  }}
+                                >
+                                  <Icon name="plus" size={12} /> Add Entry Type
+                                  Pairing
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
                 </>
@@ -2403,7 +2592,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 id: "visible",
                 label: "Visible",
                 type: "toggle",
-                tooltip: "When off, this alias will not appear in the entry type navigation menu.",
+                tooltip:
+                  "When off, this alias will not appear in the entry type navigation menu.",
               }}
               value={aliasValues.visible}
               onChange={(_, v) => setAliasValues((p) => ({ ...p, visible: v }))}
@@ -2531,7 +2721,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 id: "tooltip",
                 label: "Tooltip (optional)",
                 type: "text",
-                placeholder: "Help text shown to users when filling in this field",
+                placeholder:
+                  "Help text shown to users when filling in this field",
               }}
               value={fieldValues.tooltip ?? ""}
               onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
@@ -2569,13 +2760,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   id: "aliasIds",
                   label: "Restrict to aliases (optional)",
                   type: "badge-multiselect",
-                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
-                    value: a.id,
-                    label: a.pluralName,
-                    selectedColor: a.bgColor || "#334155",
-                    fgColor: a.fgColor || "#f1f5f9",
-                  })),
+                  tooltip:
+                    "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases]
+                    .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                    .map((a) => ({
+                      value: a.id,
+                      label: a.pluralName,
+                      selectedColor: a.bgColor || "#334155",
+                      fgColor: a.fgColor || "#f1f5f9",
+                    })),
                 }}
                 value={fieldValues.aliasIds || []}
                 onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
@@ -2659,27 +2853,73 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     }
                   />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 12,
+                    alignItems: "end",
+                  }}
+                >
                   <DynamicInput
-                    input={{ id: "unit", label: "Unit (optional)", type: "text", placeholder: 'e.g. "cards" or "$"' }}
+                    input={{
+                      id: "unit",
+                      label: "Unit (optional)",
+                      type: "text",
+                      placeholder: 'e.g. "cards" or "$"',
+                    }}
                     value={fieldValues.unit ?? ""}
-                    onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                   <div>
-                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Position</div>
-                    <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid #334155" }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#94a3b8",
+                        marginBottom: 6,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Position
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: "1px solid #334155",
+                      }}
+                    >
                       {(["prefix", "suffix"] as const).map((pos) => (
                         <button
                           key={pos}
                           type="button"
-                          onClick={() => setFieldValues((p) => ({ ...p, unitPosition: pos }))}
+                          onClick={() =>
+                            setFieldValues((p) => ({ ...p, unitPosition: pos }))
+                          }
                           style={{
-                            padding: "6px 12px", border: "none", cursor: "pointer", fontSize: 12,
-                            background: (fieldValues.unitPosition || "suffix") === pos ? "#1e3a5f" : "transparent",
-                            color: (fieldValues.unitPosition || "suffix") === pos ? "#e2e8f0" : "#64748b",
-                            fontWeight: (fieldValues.unitPosition || "suffix") === pos ? 600 : 400,
+                            padding: "6px 12px",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            background:
+                              (fieldValues.unitPosition || "suffix") === pos
+                                ? "#1e3a5f"
+                                : "transparent",
+                            color:
+                              (fieldValues.unitPosition || "suffix") === pos
+                                ? "#e2e8f0"
+                                : "#64748b",
+                            fontWeight:
+                              (fieldValues.unitPosition || "suffix") === pos
+                                ? 600
+                                : 400,
                           }}
-                        >{pos}</button>
+                        >
+                          {pos}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -2715,17 +2955,33 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   }}
                   value={fieldValues.targetTypeIds || []}
                   onChange={async (id, v) => {
-                    setFieldValues((p) => ({ ...p, [id]: v, targetAliasIds: [] }));
-                    const typeIds: string[] = v || [];
-                    if (typeIds.length === 0) { setLookupTargetAliasOptions([]); return; }
-                    const results: EntryTypeAlias[] = [];
-                    await Promise.all(typeIds.map(async (tid) => {
-                      try {
-                        const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
-                        if (r.ok) results.push(...((await r.json()).aliases || []));
-                      } catch {}
+                    setFieldValues((p) => ({
+                      ...p,
+                      [id]: v,
+                      targetAliasIds: [],
                     }));
-                    setLookupTargetAliasOptions(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+                    const typeIds: string[] = v || [];
+                    if (typeIds.length === 0) {
+                      setLookupTargetAliasOptions([]);
+                      return;
+                    }
+                    const results: EntryTypeAlias[] = [];
+                    await Promise.all(
+                      typeIds.map(async (tid) => {
+                        try {
+                          const r = await fetch(
+                            `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`,
+                          );
+                          if (r.ok)
+                            results.push(...((await r.json()).aliases || []));
+                        } catch {}
+                      }),
+                    );
+                    setLookupTargetAliasOptions(
+                      results.sort((a, b) =>
+                        a.pluralName.localeCompare(b.pluralName),
+                      ),
+                    );
                   }}
                 />
                 {lookupTargetAliasOptions.length > 0 && (
@@ -2734,9 +2990,15 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       id: "targetAliasIds",
                       label: "Restrict to subaliases (optional)",
                       type: "badge-multiselect",
-                      tooltip: "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
+                      tooltip:
+                        "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
                       options: [
-                        { value: "__none__", label: "No subtypes", selectedColor: "#475569", fgColor: "#f1f5f9" },
+                        {
+                          value: "__none__",
+                          label: "No subtypes",
+                          selectedColor: "#475569",
+                          fgColor: "#f1f5f9",
+                        },
                         ...lookupTargetAliasOptions.map((a) => ({
                           value: a.id,
                           label: a.pluralName,
@@ -2746,7 +3008,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       ],
                     }}
                     value={fieldValues.targetAliasIds || []}
-                    onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                 )}
                 <div
@@ -2838,10 +3102,13 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 id: "tooltip",
                 label: "Tooltip (optional)",
                 type: "text",
-                placeholder: "Help text shown to users when filling in this field",
+                placeholder:
+                  "Help text shown to users when filling in this field",
               }}
               value={editFieldValues.tooltip ?? ""}
-              onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+              onChange={(id, v) =>
+                setEditFieldValues((p) => ({ ...p, [id]: v }))
+              }
             />
             {aliases.length > 0 && (
               <DynamicInput
@@ -2849,16 +3116,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   id: "aliasIds",
                   label: "Restrict to aliases (optional)",
                   type: "badge-multiselect",
-                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
-                    value: a.id,
-                    label: a.pluralName,
-                    selectedColor: a.bgColor || "#334155",
-                    fgColor: a.fgColor || "#f1f5f9",
-                  })),
+                  tooltip:
+                    "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases]
+                    .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                    .map((a) => ({
+                      value: a.id,
+                      label: a.pluralName,
+                      selectedColor: a.bgColor || "#334155",
+                      fgColor: a.fgColor || "#f1f5f9",
+                    })),
                 }}
                 value={editFieldValues.aliasIds || []}
-                onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                onChange={(id, v) =>
+                  setEditFieldValues((p) => ({ ...p, [id]: v }))
+                }
               />
             )}
             {editingField.fieldType === "picklist" && (
@@ -2897,43 +3169,118 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             {editingField.fieldType === "number" && (
               <>
                 <DynamicInput
-                  input={{ id: "decimals", label: "Decimal Places", type: "number", min: "0", max: "10" }}
+                  input={{
+                    id: "decimals",
+                    label: "Decimal Places",
+                    type: "number",
+                    min: "0",
+                    max: "10",
+                  }}
                   value={editFieldValues.decimals ?? 0}
-                  onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                  onChange={(id, v) =>
+                    setEditFieldValues((p) => ({ ...p, [id]: v }))
+                  }
                 />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
                   <DynamicInput
-                    input={{ id: "min", label: "Min (optional)", type: "number" }}
+                    input={{
+                      id: "min",
+                      label: "Min (optional)",
+                      type: "number",
+                    }}
                     value={editFieldValues.min ?? ""}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                   <DynamicInput
-                    input={{ id: "max", label: "Max (optional)", type: "number" }}
+                    input={{
+                      id: "max",
+                      label: "Max (optional)",
+                      type: "number",
+                    }}
                     value={editFieldValues.max ?? ""}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 12,
+                    alignItems: "end",
+                  }}
+                >
                   <DynamicInput
-                    input={{ id: "unit", label: "Unit (optional)", type: "text", placeholder: 'e.g. "cards" or "$"' }}
+                    input={{
+                      id: "unit",
+                      label: "Unit (optional)",
+                      type: "text",
+                      placeholder: 'e.g. "cards" or "$"',
+                    }}
                     value={editFieldValues.unit ?? ""}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                   <div>
-                    <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 500 }}>Position</div>
-                    <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid #334155" }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#94a3b8",
+                        marginBottom: 6,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Position
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: "1px solid #334155",
+                      }}
+                    >
                       {(["prefix", "suffix"] as const).map((pos) => (
                         <button
                           key={pos}
                           type="button"
-                          onClick={() => setEditFieldValues((p) => ({ ...p, unitPosition: pos }))}
+                          onClick={() =>
+                            setEditFieldValues((p) => ({
+                              ...p,
+                              unitPosition: pos,
+                            }))
+                          }
                           style={{
-                            padding: "6px 12px", border: "none", cursor: "pointer", fontSize: 12,
-                            background: (editFieldValues.unitPosition || "suffix") === pos ? "#1e3a5f" : "transparent",
-                            color: (editFieldValues.unitPosition || "suffix") === pos ? "#e2e8f0" : "#64748b",
-                            fontWeight: (editFieldValues.unitPosition || "suffix") === pos ? 600 : 400,
+                            padding: "6px 12px",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            background:
+                              (editFieldValues.unitPosition || "suffix") === pos
+                                ? "#1e3a5f"
+                                : "transparent",
+                            color:
+                              (editFieldValues.unitPosition || "suffix") === pos
+                                ? "#e2e8f0"
+                                : "#64748b",
+                            fontWeight:
+                              (editFieldValues.unitPosition || "suffix") === pos
+                                ? 600
+                                : 400,
                           }}
-                        >{pos}</button>
+                        >
+                          {pos}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -2942,16 +3289,36 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             )}
             {editingField.fieldType === "lookup" && (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
                   <DynamicInput
-                    input={{ id: "aToB", label: "This record's label", type: "text", placeholder: "e.g. father" }}
+                    input={{
+                      id: "aToB",
+                      label: "This record's label",
+                      type: "text",
+                      placeholder: "e.g. father",
+                    }}
                     value={editFieldValues.aToB ?? ""}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                   <DynamicInput
-                    input={{ id: "bToA", label: "Linked record's label", type: "text", placeholder: "e.g. son" }}
+                    input={{
+                      id: "bToA",
+                      label: "Linked record's label",
+                      type: "text",
+                      placeholder: "e.g. son",
+                    }}
                     value={editFieldValues.bToA ?? ""}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                 </div>
                 <DynamicInput
@@ -2971,17 +3338,33 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   }}
                   value={editFieldValues.targetTypeIds || []}
                   onChange={async (id, v) => {
-                    setEditFieldValues((p) => ({ ...p, [id]: v, targetAliasIds: [] }));
-                    const typeIds: string[] = v || [];
-                    if (typeIds.length === 0) { setEditingFieldTargetAliases([]); return; }
-                    const results: EntryTypeAlias[] = [];
-                    await Promise.all(typeIds.map(async (tid) => {
-                      try {
-                        const r = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`);
-                        if (r.ok) results.push(...((await r.json()).aliases || []));
-                      } catch {}
+                    setEditFieldValues((p) => ({
+                      ...p,
+                      [id]: v,
+                      targetAliasIds: [],
                     }));
-                    setEditingFieldTargetAliases(results.sort((a, b) => a.pluralName.localeCompare(b.pluralName)));
+                    const typeIds: string[] = v || [];
+                    if (typeIds.length === 0) {
+                      setEditingFieldTargetAliases([]);
+                      return;
+                    }
+                    const results: EntryTypeAlias[] = [];
+                    await Promise.all(
+                      typeIds.map(async (tid) => {
+                        try {
+                          const r = await fetch(
+                            `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${tid}/aliases`,
+                          );
+                          if (r.ok)
+                            results.push(...((await r.json()).aliases || []));
+                        } catch {}
+                      }),
+                    );
+                    setEditingFieldTargetAliases(
+                      results.sort((a, b) =>
+                        a.pluralName.localeCompare(b.pluralName),
+                      ),
+                    );
                   }}
                 />
                 {editingFieldTargetAliases.length > 0 && (
@@ -2990,9 +3373,15 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       id: "targetAliasIds",
                       label: "Restrict to subaliases (optional)",
                       type: "badge-multiselect",
-                      tooltip: "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
+                      tooltip:
+                        "Leave empty to allow any subalias. Select one or more to limit this field to records with those subtypes.",
                       options: [
-                        { value: "__none__", label: "No subtypes", selectedColor: "#475569", fgColor: "#f1f5f9" },
+                        {
+                          value: "__none__",
+                          label: "No subtypes",
+                          selectedColor: "#475569",
+                          fgColor: "#f1f5f9",
+                        },
                         ...editingFieldTargetAliases.map((a) => ({
                           value: a.id,
                           label: a.pluralName,
@@ -3002,12 +3391,20 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       ],
                     }}
                     value={editFieldValues.targetAliasIds || []}
-                    onChange={(id, v) => setEditFieldValues((p) => ({ ...p, [id]: v }))}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v }))
+                    }
                   />
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Allow multiple values:</span>
-                  <span style={{ fontSize: 13, color: "#f1f5f9" }}>{(editingField.config as any)?.multiselect ? "Yes" : "No"}</span>
+                  <span
+                    style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}
+                  >
+                    Allow multiple values:
+                  </span>
+                  <span style={{ fontSize: 13, color: "#f1f5f9" }}>
+                    {(editingField.config as any)?.multiselect ? "Yes" : "No"}
+                  </span>
                 </div>
               </>
             )}
@@ -3023,12 +3420,18 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             </span>
           }
           closeable
-          onClose={() => { setShowCreateRelSec(false); setNewRelSecAliasIds([]); }}
+          onClose={() => {
+            setShowCreateRelSec(false);
+            setNewRelSecAliasIds([]);
+          }}
           footer={
             <>
               <Button
                 variant="secondary"
-                onClick={() => { setShowCreateRelSec(false); setNewRelSecAliasIds([]); }}
+                onClick={() => {
+                  setShowCreateRelSec(false);
+                  setNewRelSecAliasIds([]);
+                }}
               >
                 Cancel
               </Button>
@@ -3043,7 +3446,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           }
           maxWidth={420}
         >
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div
+            style={{
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             <DynamicInput
               input={{
                 id: "name",
@@ -3061,13 +3471,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   id: "aliasIds",
                   label: "Restrict to aliases (optional)",
                   type: "badge-multiselect",
-                  tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                  options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
-                    value: a.id,
-                    label: a.pluralName,
-                    selectedColor: a.bgColor || "#334155",
-                    fgColor: a.fgColor || "#f1f5f9",
-                  })),
+                  tooltip:
+                    "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                  options: [...aliases]
+                    .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                    .map((a) => ({
+                      value: a.id,
+                      label: a.pluralName,
+                      selectedColor: a.bgColor || "#334155",
+                      fgColor: a.fgColor || "#f1f5f9",
+                    })),
                 }}
                 value={newRelSecAliasIds}
                 onChange={(_, v) => setNewRelSecAliasIds(v as string[])}
@@ -3088,12 +3501,20 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           onClose={() => setEditingRelSecAliasSecId(null)}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setEditingRelSecAliasSecId(null)}>
+              <Button
+                variant="secondary"
+                onClick={() => setEditingRelSecAliasSecId(null)}
+              >
                 Cancel
               </Button>
               <Button
                 variant="primary"
-                onClick={() => handleUpdateRelSecAliases(editingRelSecAliasSecId, editRelSecAliasIds)}
+                onClick={() =>
+                  handleUpdateRelSecAliases(
+                    editingRelSecAliasSecId,
+                    editRelSecAliasIds,
+                  )
+                }
               >
                 Save
               </Button>
@@ -3107,13 +3528,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 id: "aliasIds",
                 label: "Restrict to aliases (optional)",
                 type: "badge-multiselect",
-                tooltip: "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                options: [...aliases].sort((a, b) => a.pluralName.localeCompare(b.pluralName)).map((a) => ({
-                  value: a.id,
-                  label: a.pluralName,
-                  selectedColor: a.bgColor || "#334155",
-                  fgColor: a.fgColor || "#f1f5f9",
-                })),
+                tooltip:
+                  "Leave empty to show for all aliases. Select one or more to restrict visibility.",
+                options: [...aliases]
+                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                  .map((a) => ({
+                    value: a.id,
+                    label: a.pluralName,
+                    selectedColor: a.bgColor || "#334155",
+                    fgColor: a.fgColor || "#f1f5f9",
+                  })),
               }}
               value={editRelSecAliasIds}
               onChange={(_, v) => setEditRelSecAliasIds(v as string[])}
@@ -3130,10 +3554,25 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             </span>
           }
           closeable
-          onClose={() => { setRelatedSecId(null); setRelatedTypeId(""); setRelatedFieldId(""); setRelatedTypeFields([]); setRelatedTypeLookupCounts({}); }}
+          onClose={() => {
+            setRelatedSecId(null);
+            setRelatedTypeId("");
+            setRelatedFieldId("");
+            setRelatedTypeFields([]);
+            setRelatedTypeLookupCounts({});
+          }}
           footer={
             <>
-              <Button variant="secondary" onClick={() => { setRelatedSecId(null); setRelatedTypeId(""); setRelatedFieldId(""); setRelatedTypeFields([]); setRelatedTypeLookupCounts({}); }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRelatedSecId(null);
+                  setRelatedTypeId("");
+                  setRelatedFieldId("");
+                  setRelatedTypeFields([]);
+                  setRelatedTypeLookupCounts({});
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -3162,8 +3601,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               <SearchableCombobox<EntryType>
                 items={[...entryTypes]
                   .filter((t) => !t.isGroup)
-                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
-                }
+                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))}
                 selectedItems={entryTypes.filter((t) => t.id === relatedTypeId)}
                 onSelectionChange={async (items) => {
                   const t = items[0];
@@ -3192,17 +3630,27 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 }}
                 getItemKey={(t) => t.id}
                 renderItem={(t, context) => {
-                  const alreadyAdded = (relatedBySec[relatedSecId!] || []).filter(
-                    (r) => r.entryTypeId === t.id,
-                  ).length;
+                  const alreadyAdded = (
+                    relatedBySec[relatedSecId!] || []
+                  ).filter((r) => r.entryTypeId === t.id).length;
                   const total = relatedTypeLookupCounts[t.id] ?? null;
-                  const available = total !== null ? total - alreadyAdded : null;
-                  const label = t.pluralName + (t.id === activeTypeId ? " (self)" : "");
+                  const available =
+                    total !== null ? total - alreadyAdded : null;
+                  const label =
+                    t.pluralName + (t.id === activeTypeId ? " (self)" : "");
                   if (context === "pill") return <span>{label}</span>;
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       <span style={{ flex: 1 }}>{label}</span>
-                      <span style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {available !== null
                           ? `${available} field${available !== 1 ? "s" : ""} available`
                           : "…"}
@@ -3217,57 +3665,72 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 placeholder="Select entry type…"
               />
             </div>
-            {relatedTypeId && (() => {
-              const alreadyAddedFieldIds = new Set(
-                (relatedBySec[relatedSecId!] || [])
-                  .filter((r) => r.entryTypeId === relatedTypeId)
-                  .map((r) => r.fieldId),
-              );
-              const availableFields = relatedTypeFields.filter(
-                (f) => !alreadyAddedFieldIds.has(f.id),
-              );
-              return (
-                <div>
-                  <div
-                    style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}
-                  >
-                    Lookup Field targeting "{activeType?.singularName}"
+            {relatedTypeId &&
+              (() => {
+                const alreadyAddedFieldIds = new Set(
+                  (relatedBySec[relatedSecId!] || [])
+                    .filter((r) => r.entryTypeId === relatedTypeId)
+                    .map((r) => r.fieldId),
+                );
+                const availableFields = relatedTypeFields.filter(
+                  (f) => !alreadyAddedFieldIds.has(f.id),
+                );
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#64748b",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Lookup Field targeting "{activeType?.singularName}"
+                    </div>
+                    <select
+                      value={relatedFieldId}
+                      onChange={(e) => setRelatedFieldId(e.target.value)}
+                      style={{
+                        width: "100%",
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 6,
+                        padding: "7px 10px",
+                        color: "#f1f5f9",
+                        fontSize: 13,
+                        outline: "none",
+                      }}
+                    >
+                      <option value="">Select field…</option>
+                      {availableFields.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                    {relatedTypeFields.length === 0 && (
+                      <div
+                        style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}
+                      >
+                        No lookup fields target "{activeType?.singularName}" in
+                        this entry type.
+                      </div>
+                    )}
+                    {relatedTypeFields.length > 0 &&
+                      availableFields.length === 0 && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#f59e0b",
+                            marginTop: 6,
+                          }}
+                        >
+                          All available lookup fields have already been added to
+                          this section.
+                        </div>
+                      )}
                   </div>
-                  <select
-                    value={relatedFieldId}
-                    onChange={(e) => setRelatedFieldId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      background: "#1e293b",
-                      border: "1px solid #334155",
-                      borderRadius: 6,
-                      padding: "7px 10px",
-                      color: "#f1f5f9",
-                      fontSize: 13,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="">Select field…</option>
-                    {availableFields.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                  {relatedTypeFields.length === 0 && (
-                    <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}>
-                      No lookup fields target "{activeType?.singularName}" in this
-                      entry type.
-                    </div>
-                  )}
-                  {relatedTypeFields.length > 0 && availableFields.length === 0 && (
-                    <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}>
-                      All available lookup fields have already been added to this section.
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                );
+              })()}
           </div>
         </Modal>
       )}
@@ -3440,17 +3903,18 @@ function PicklistOptionsEditor({
     let value = base;
     let n = 2;
     while (existing.has(value)) value = `${base}_${n++}`;
-    const sorted = [...values, { value, label: newLabel.trim() }]
-      .sort((a, b) => a.label.localeCompare(b.label));
+    const sorted = [...values, { value, label: newLabel.trim() }].sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
     onChange(sorted);
     setNewLabel("");
   };
 
   const saveEdit = (i: number) => {
     if (!editingLabel.trim()) return;
-    const updated = values.map((o, j) =>
-      j === i ? { ...o, label: editingLabel.trim() } : o,
-    ).sort((a, b) => a.label.localeCompare(b.label));
+    const updated = values
+      .map((o, j) => (j === i ? { ...o, label: editingLabel.trim() } : o))
+      .sort((a, b) => a.label.localeCompare(b.label));
     onChange(updated);
     setEditingIdx(null);
   };
