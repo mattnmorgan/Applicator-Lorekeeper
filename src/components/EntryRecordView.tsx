@@ -159,7 +159,7 @@ export default function EntryRecordView({
   const [showDelete, setShowDelete] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [previewFile, setPreviewFile] = useState<Attachment | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<{ current: number; total: number } | null>(null);
   const [iconVersion, setIconVersion] = useState(0);
   const [renamingAttachment, setRenamingAttachment] = useState<Attachment | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -422,26 +422,30 @@ export default function EntryRecordView({
     }
   };
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${baseUrl}/attachments`, {
-        method: "POST",
-        body: formData,
-      });
-      if (res.ok) {
-        const att = await res.json();
-        setAttachments((a) => [...a, att]);
-        addToast("File attached");
-      } else addToast("Upload failed", "error");
-    } catch {
-      addToast("Upload failed", "error");
-    } finally {
-      setUploading(false);
+  const handleUploadFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+      setUploading({ current: i + 1, total: files.length });
+      try {
+        const formData = new FormData();
+        formData.append("file", files[i]);
+        const res = await fetch(`${baseUrl}/attachments`, {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          const att = await res.json();
+          setAttachments((a) => [...a, att]);
+          addToast("File attached");
+        } else addToast("Upload failed", "error");
+      } catch {
+        addToast("Upload failed", "error");
+      }
     }
+    setUploading(null);
   };
+
+  const handleUpload = (file: File) => handleUploadFiles([file]);
 
   const handleDeleteAttachment = async (att: Attachment) => {
     try {
@@ -479,7 +483,7 @@ export default function EntryRecordView({
     const onPaste = (e: ClipboardEvent) => {
       const files = Array.from(e.clipboardData?.files || []);
       if (files.length > 0) {
-        files.forEach(handleUpload);
+        handleUploadFiles(files);
         e.preventDefault();
       }
     };
@@ -1555,18 +1559,13 @@ export default function EntryRecordView({
                     inp.type = "file";
                     inp.multiple = true;
                     inp.onchange = () =>
-                      Array.from(inp.files || []).forEach(handleUpload);
+                      handleUploadFiles(Array.from(inp.files || []));
                     inp.click();
                   }}
                 />
               </div>
             )}
           </div>
-          {uploading && (
-            <div style={{ color: "#64748b", fontSize: 13, marginBottom: 8 }}>
-              Uploading…
-            </div>
-          )}
           {attachments.length === 0 ? (
             <div style={{ color: "#64748b", fontSize: 13 }}>No attachments</div>
           ) : (
@@ -1744,6 +1743,26 @@ export default function EntryRecordView({
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
         />
+      )}
+
+      {/* Full-screen upload blocker */}
+      {uploading && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "rgba(0, 0, 0, 0.6)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 14,
+        }}>
+          <Spinner />
+          <div style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 500 }}>
+            Uploading {uploading.current} of {uploading.total}…
+          </div>
+        </div>
       )}
 
       {showPrint && (

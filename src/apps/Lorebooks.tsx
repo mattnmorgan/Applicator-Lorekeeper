@@ -473,7 +473,7 @@ export default function Lorebooks() {
   }, []);
 
   const addToastStr = useCallback(
-    (message: string, type?: "success" | "error") => addToast({ message, type }),
+    (message: string, type?: "success" | "error") => addToast({ message, type: type ?? "success" }),
     [addToast],
   );
 
@@ -748,7 +748,7 @@ function RecordsScreen({
   }, [search, records]);
 
   const addToastStr = useCallback(
-    (message: string, type?: "success" | "error") => addToast({ message, type }),
+    (message: string, type?: "success" | "error") => addToast({ message, type: type ?? "success" }),
     [addToast],
   );
 

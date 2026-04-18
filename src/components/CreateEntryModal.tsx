@@ -432,7 +432,7 @@ export default function CreateEntryModal({
       if (!f.aliasIds || f.aliasIds.length === 0) return true;
       return f.aliasIds.includes(activeAliasId);
     })
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const setFieldValue = (fieldId: string, value: any) => {
     setFieldData((p) => ({ ...p, [fieldId]: value }));

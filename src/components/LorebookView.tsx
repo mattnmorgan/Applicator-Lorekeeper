@@ -57,6 +57,7 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
   const [entryTypes, setEntryTypes] = useState<EntryType[]>([]);
   const [aliasesByTypeId, setAliasesByTypeId] = useState<Record<string, EntryTypeAlias[]>>({});
   const [navOpen, setNavOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
   const [toasts, setToasts] = useState<any[]>([]);
@@ -88,6 +89,20 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Auto-collapse nav on mobile screens
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    if (mq.matches) {
+      setNavOpen(false);
+      setIsMobile(true);
+    }
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   // Keep resolvedTypeId in sync with the prop when it's provided directly
   useEffect(() => { setResolvedTypeId(entryTypeId); }, [entryTypeId]);
 
@@ -111,14 +126,17 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
   }, [entryId, entryTypeId, entryTypes, lorebookId]);
 
   const handleSelectType = (typeId: string) => {
+    if (isMobile) setNavOpen(false);
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId });
   };
 
   const handleSelectAlias = (typeId: string, aId: string) => {
+    if (isMobile) setNavOpen(false);
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, aliasId: aId });
   };
 
   const handleSelectRecord = (typeId: string, rId: string) => {
+    if (isMobile) setNavOpen(false);
     navigate({ type: "lorebook", lorebookId, entryTypeId: typeId, entryId: rId });
   };
 

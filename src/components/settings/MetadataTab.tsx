@@ -13,6 +13,7 @@ import {
   FormEditor,
   InfoTooltip,
   Tooltip,
+  SearchableCombobox,
 } from "@applicator/sdk/components";
 import type {
   FormLayout,
@@ -172,6 +173,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [relatedTypeId, setRelatedTypeId] = useState("");
   const [relatedFieldId, setRelatedFieldId] = useState("");
   const [relatedTypeFields, setRelatedTypeFields] = useState<EntryField[]>([]);
+  const [relatedTypeLookupCounts, setRelatedTypeLookupCounts] = useState<Record<string, number>>({});
   const [renamingRelSecId, setRenamingRelSecId] = useState<string | null>(null);
   const [relSecRenameValue, setRelSecRenameValue] = useState("");
   const [editingRelSecAliasSecId, setEditingRelSecAliasSecId] = useState<string | null>(null);
@@ -793,9 +795,40 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setRelatedTypeId("");
       setRelatedFieldId("");
       setRelatedTypeFields([]);
+      setRelatedTypeLookupCounts({});
       addToast("Related pairing added");
     } else addToast("Failed to add pairing", "error");
   };
+
+  // Fetch eligible lookup-field counts for all entry types when the Add Related modal opens
+  useEffect(() => {
+    if (!relatedSecId || !activeTypeId) return;
+    setRelatedTypeLookupCounts({});
+    const nonGroupTypes = entryTypes.filter((t) => !t.isGroup);
+    Promise.all(
+      nonGroupTypes.map(async (t) => {
+        try {
+          const res = await fetch(
+            `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${t.id}/fields`,
+          );
+          if (!res.ok) return [t.id, 0] as const;
+          const { fields: allFields } = await res.json();
+          const count = (allFields as EntryField[]).filter(
+            (f) =>
+              f.fieldType === "lookup" &&
+              (f.config?.targetEntryTypeIds || []).includes(activeTypeId),
+          ).length;
+          return [t.id, count] as const;
+        } catch {
+          return [t.id, 0] as const;
+        }
+      }),
+    ).then((results) => {
+      const counts: Record<string, number> = {};
+      results.forEach(([typeId, count]) => { counts[typeId] = count; });
+      setRelatedTypeLookupCounts(counts);
+    });
+  }, [relatedSecId]);
 
   const handleRemoveRelated = async (sectionId: string, itemId: string) => {
     if (!activeTypeId) return;
@@ -3097,10 +3130,10 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
             </span>
           }
           closeable
-          onClose={() => setRelatedSecId(null)}
+          onClose={() => { setRelatedSecId(null); setRelatedTypeId(""); setRelatedFieldId(""); setRelatedTypeFields([]); setRelatedTypeLookupCounts({}); }}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setRelatedSecId(null)}>
+              <Button variant="secondary" onClick={() => { setRelatedSecId(null); setRelatedTypeId(""); setRelatedFieldId(""); setRelatedTypeFields([]); setRelatedTypeLookupCounts({}); }}>
                 Cancel
               </Button>
               <Button
@@ -3126,14 +3159,20 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>
                 Entry Type with Lookup
               </div>
-              <select
-                value={relatedTypeId}
-                onChange={async (e) => {
-                  setRelatedTypeId(e.target.value);
+              <SearchableCombobox<EntryType>
+                items={[...entryTypes]
+                  .filter((t) => !t.isGroup)
+                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                }
+                selectedItems={entryTypes.filter((t) => t.id === relatedTypeId)}
+                onSelectionChange={async (items) => {
+                  const t = items[0];
+                  const newTypeId = t?.id || "";
+                  setRelatedTypeId(newTypeId);
                   setRelatedFieldId("");
-                  if (e.target.value) {
+                  if (newTypeId) {
                     const allFieldsRes = await fetch(
-                      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${e.target.value}/fields`,
+                      `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${newTypeId}/fields`,
                     );
                     const lookupFields: EntryField[] = [];
                     if (allFieldsRes.ok) {
@@ -3151,64 +3190,84 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                     setRelatedTypeFields(lookupFields);
                   } else setRelatedTypeFields([]);
                 }}
-                style={{
-                  width: "100%",
-                  background: "#1e293b",
-                  border: "1px solid #334155",
-                  borderRadius: 6,
-                  padding: "7px 10px",
-                  color: "#f1f5f9",
-                  fontSize: 13,
-                  outline: "none",
+                getItemKey={(t) => t.id}
+                renderItem={(t, context) => {
+                  const alreadyAdded = (relatedBySec[relatedSecId!] || []).filter(
+                    (r) => r.entryTypeId === t.id,
+                  ).length;
+                  const total = relatedTypeLookupCounts[t.id] ?? null;
+                  const available = total !== null ? total - alreadyAdded : null;
+                  const label = t.pluralName + (t.id === activeTypeId ? " (self)" : "");
+                  if (context === "pill") return <span>{label}</span>;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ flex: 1 }}>{label}</span>
+                      <span style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
+                        {available !== null
+                          ? `${available} field${available !== 1 ? "s" : ""} available`
+                          : "…"}
+                      </span>
+                    </div>
+                  );
                 }}
-              >
-                <option value="">Select entry type…</option>
-                {[...entryTypes]
-                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.pluralName}
-                      {t.id === activeTypeId ? " (self)" : ""}
-                    </option>
-                  ))}
-              </select>
+                filterItem={(t, term) =>
+                  t.pluralName.toLowerCase().includes(term.toLowerCase()) ||
+                  t.singularName.toLowerCase().includes(term.toLowerCase())
+                }
+                placeholder="Select entry type…"
+              />
             </div>
-            {relatedTypeId && (
-              <div>
-                <div
-                  style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}
-                >
-                  Lookup Field targeting "{activeType?.singularName}"
-                </div>
-                <select
-                  value={relatedFieldId}
-                  onChange={(e) => setRelatedFieldId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    background: "#1e293b",
-                    border: "1px solid #334155",
-                    borderRadius: 6,
-                    padding: "7px 10px",
-                    color: "#f1f5f9",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                >
-                  <option value="">Select field…</option>
-                  {relatedTypeFields.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-                {relatedTypeFields.length === 0 && (
-                  <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}>
-                    No lookup fields target "{activeType?.singularName}" in this
-                    entry type.
+            {relatedTypeId && (() => {
+              const alreadyAddedFieldIds = new Set(
+                (relatedBySec[relatedSecId!] || [])
+                  .filter((r) => r.entryTypeId === relatedTypeId)
+                  .map((r) => r.fieldId),
+              );
+              const availableFields = relatedTypeFields.filter(
+                (f) => !alreadyAddedFieldIds.has(f.id),
+              );
+              return (
+                <div>
+                  <div
+                    style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}
+                  >
+                    Lookup Field targeting "{activeType?.singularName}"
                   </div>
-                )}
-              </div>
-            )}
+                  <select
+                    value={relatedFieldId}
+                    onChange={(e) => setRelatedFieldId(e.target.value)}
+                    style={{
+                      width: "100%",
+                      background: "#1e293b",
+                      border: "1px solid #334155",
+                      borderRadius: 6,
+                      padding: "7px 10px",
+                      color: "#f1f5f9",
+                      fontSize: 13,
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">Select field…</option>
+                    {availableFields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                  {relatedTypeFields.length === 0 && (
+                    <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}>
+                      No lookup fields target "{activeType?.singularName}" in this
+                      entry type.
+                    </div>
+                  )}
+                  {relatedTypeFields.length > 0 && availableFields.length === 0 && (
+                    <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 6 }}>
+                      All available lookup fields have already been added to this section.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </Modal>
       )}
