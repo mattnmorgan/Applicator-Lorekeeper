@@ -50,7 +50,6 @@ export default function LorebookSettings({ lorebookId, tab = "details", navigate
 
   const onLorebookUpdated = (updated: Lorebook) => {
     setLorebook(updated);
-    addToast("Saved");
   };
 
   const canManage = lorebook?.accessLevel === "owner" || lorebook?.accessLevel === "manager";
