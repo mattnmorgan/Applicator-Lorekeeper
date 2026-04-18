@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 4, "dev": 3 },
+  "version": { "major": 1, "minor": 4, "dev": 5 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -804,6 +804,14 @@
       "description": "Worldbuilding lorebook management",
       "target": "app",
       "component": "Lorekeeper"
+    },
+    {
+      "id": "lorebooks",
+      "label": "Lorebooks",
+      "description": "Browse lorebooks, entry types, and entries",
+      "target": "utility-bar",
+      "component": "Lorebooks",
+      "poppable": true
     }
   ]
 }
