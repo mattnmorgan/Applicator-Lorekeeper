@@ -925,13 +925,25 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       name: f.name,
       fieldType: f.fieldType,
     }));
-  const formEditorAliases: FormAliasBadge[] = aliases.map((a) => ({
-    id: a.id,
-    singularName: a.singularName,
-    pluralName: a.pluralName,
-    bgColor: a.bgColor,
-    fgColor: a.fgColor,
-  }));
+  const formEditorAliases: FormAliasBadge[] = [
+    // "No alias" sentinel: shown as the entry type's own name, selects entries with no alias assigned
+    ...(aliases.length > 0 && activeType
+      ? [
+          {
+            id: "__no_alias__",
+            singularName: activeType.singularName,
+            pluralName: activeType.pluralName,
+          },
+        ]
+      : []),
+    ...aliases.map((a) => ({
+      id: a.id,
+      singularName: a.singularName,
+      pluralName: a.pluralName,
+      bgColor: a.bgColor,
+      fgColor: a.fgColor,
+    })),
+  ];
 
   // ── Render ───────────────────────────────────────────────────────────────────
 

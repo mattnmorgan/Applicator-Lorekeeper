@@ -841,6 +841,7 @@ export default function EntryRecordView({
   const formLayout = entryType?.formLayout;
   const hasFormLayout = formLayout && formLayout.sections.length > 0;
 
+
   // FormViewerField list for FormViewer
   const viewerFields: FormViewerField[] = fields.map((f) => ({
     id: f.id,
@@ -1361,7 +1362,9 @@ export default function EntryRecordView({
         {relatedSections.filter((sec) => {
           const ids = sec.config?.aliasIds;
           if (!ids || ids.length === 0) return true;
-          return activeAliasId ? ids.includes(activeAliasId) : false;
+          const otherIds = ids.filter((id: string) => id !== "__no_alias__");
+          if (!activeAliasId) return ids.includes("__no_alias__") || otherIds.length === 0;
+          return otherIds.includes(activeAliasId);
         }).length > 0 && (
           <>
             <hr
@@ -1384,7 +1387,9 @@ export default function EntryRecordView({
             {[...relatedSections].filter((sec) => {
               const ids = sec.config?.aliasIds;
               if (!ids || ids.length === 0) return true;
-              return activeAliasId ? ids.includes(activeAliasId) : false;
+              const otherIds = ids.filter((id: string) => id !== "__no_alias__");
+              if (!activeAliasId) return ids.includes("__no_alias__") || otherIds.length === 0;
+              return otherIds.includes(activeAliasId);
             }).sort((a, b) => a.name.localeCompare(b.name)).map((sec) => {
               const records = relatedRecords[sec.id] || [];
 
