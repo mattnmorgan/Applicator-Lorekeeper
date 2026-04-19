@@ -21,6 +21,8 @@ interface EntryType {
   sortOrder: number;
   isGroup?: boolean;
   allowAliasCreation?: boolean;
+  secondaryFieldId?: string;
+  groupByFieldId?: string;
 }
 
 interface Lorebook {

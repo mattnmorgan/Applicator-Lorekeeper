@@ -38,6 +38,8 @@ interface EntryType {
   isGroup?: boolean;
   allowAliasCreation?: boolean;
   formLayout?: FormLayout | null;
+  secondaryFieldId?: string;
+  groupByFieldId?: string;
 }
 
 interface EntryTypeAlias {
@@ -1505,6 +1507,89 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                               </div>
                             </div>
                           </div>
+                          {/* Secondary display field + Group by */}
+                          {(() => {
+                            const eligibleFields = fields
+                              .filter((f) =>
+                                f.fieldType === "text" || f.fieldType === "picklist" || f.fieldType === "lookup"
+                              )
+                              .sort((a, b) => a.name.localeCompare(b.name));
+                            return (
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                <div>
+                                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                    Secondary Display Field
+                                    <InfoTooltip text="Field shown beside each entry name in the list. Defaults to alias / subtype badge when not set." />
+                                  </div>
+                                  <select
+                                    value={activeType.secondaryFieldId || ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setEntryTypes((prev) =>
+                                        prev.map((t) => t.id === activeTypeId ? { ...t, secondaryFieldId: v } : t)
+                                      );
+                                      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ secondaryFieldId: v }),
+                                      });
+                                    }}
+                                    style={{
+                                      background: "#1e293b",
+                                      border: "1px solid #334155",
+                                      borderRadius: 6,
+                                      padding: "5px 8px",
+                                      color: "#f1f5f9",
+                                      fontSize: 12,
+                                      outline: "none",
+                                      width: "100%",
+                                    }}
+                                  >
+                                    <option value="">Alias / Subtype</option>
+                                    {eligibleFields.map((f) => (
+                                      <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                    Group By
+                                    <InfoTooltip text="Group the entry list by this field. Multi-value entries (multipicklist, multi-lookup) appear under each group." />
+                                  </div>
+                                  <select
+                                    value={activeType.groupByFieldId || ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setEntryTypes((prev) =>
+                                        prev.map((t) => t.id === activeTypeId ? { ...t, groupByFieldId: v } : t)
+                                      );
+                                      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ groupByFieldId: v }),
+                                      });
+                                    }}
+                                    style={{
+                                      background: "#1e293b",
+                                      border: "1px solid #334155",
+                                      borderRadius: 6,
+                                      padding: "5px 8px",
+                                      color: "#f1f5f9",
+                                      fontSize: 12,
+                                      outline: "none",
+                                      width: "100%",
+                                    }}
+                                  >
+                                    <option value="">None</option>
+                                    <option value="alias">Alias / Subtype</option>
+                                    {eligibleFields.map((f) => (
+                                      <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </>
                       )}
 

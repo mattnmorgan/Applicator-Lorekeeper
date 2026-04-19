@@ -12,6 +12,10 @@ export interface EntryType {
   isGroup?: boolean;
   allowAliasCreation?: boolean;
   formLayout?: FormLayout;
+  /** ID of field to show as secondary text in list (empty = show alias/subtype badge) */
+  secondaryFieldId?: string;
+  /** ID of field to group list entries by (empty = no grouping) */
+  groupByFieldId?: string;
 }
 
 export interface EntrySection {

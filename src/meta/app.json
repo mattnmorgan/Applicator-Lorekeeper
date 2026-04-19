@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 5, "dev": 1 },
+  "version": { "major": 1, "minor": 6, "dev": 2 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -136,6 +136,16 @@
           "name": "formLayout",
           "description": "JSON form layout defining sections, rows, and column field assignments",
           "type": "json"
+        },
+        {
+          "name": "secondaryFieldId",
+          "description": "ID of the field to display as secondary text in the entry list (empty = show alias/subtype badge)",
+          "type": "string"
+        },
+        {
+          "name": "groupByFieldId",
+          "description": "ID of the field to group entries by in the list (empty = no grouping)",
+          "type": "string"
         }
       ]
     },
