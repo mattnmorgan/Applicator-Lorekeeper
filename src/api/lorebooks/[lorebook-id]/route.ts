@@ -108,6 +108,10 @@ export async function DELETE(
         { filters: [{ field: "lorebookId", operator: "=", value: lorebookId }] },
         { client }
       );
+      await rm("entry_type_alias").deleteFilteredRecords(
+        { filters: [{ field: "lorebookId", operator: "=", value: lorebookId }] },
+        { client }
+      );
       await rm("entry_type").deleteFilteredRecords(
         { filters: [{ field: "lorebookId", operator: "=", value: lorebookId }] },
         { client }

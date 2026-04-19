@@ -431,7 +431,9 @@ export default function CreateEntryModal({
   const visibleFields = fields
     .filter((f) => {
       if (!f.aliasIds || f.aliasIds.length === 0) return true;
-      return f.aliasIds.includes(activeAliasId);
+      const otherIds = f.aliasIds.filter((id) => id !== "__none__");
+      if (!activeAliasId) return f.aliasIds.includes("__none__") || otherIds.length === 0;
+      return otherIds.includes(activeAliasId);
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 

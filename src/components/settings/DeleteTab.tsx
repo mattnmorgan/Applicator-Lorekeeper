@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, ConfirmModal } from "@applicator/sdk/components";
+import { Button, ConfirmModal, Spinner } from "@applicator/sdk/components";
 
 interface Props {
   lorebookId: string;
@@ -15,6 +15,7 @@ export default function DeleteTab({ lorebookId, lorebookName, onDeleted, addToas
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
+    setShowConfirm(false);
     setDeleting(true);
     try {
       const res = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}`, { method: "DELETE" });
@@ -41,7 +42,14 @@ export default function DeleteTab({ lorebookId, lorebookName, onDeleted, addToas
         </div>
       </div>
       <Button variant="danger" onClick={() => setShowConfirm(true)} disabled={deleting}>
-        Delete Lorebook
+        {deleting ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Spinner size={16} color="#fca5a5" label="Deleting lorebook" />
+            Deleting…
+          </span>
+        ) : (
+          "Delete Lorebook"
+        )}
       </Button>
       {showConfirm && (
         <ConfirmModal

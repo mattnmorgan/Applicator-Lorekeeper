@@ -138,7 +138,7 @@ export default function LorebookSettings({ lorebookId, tab = "details", navigate
             children: navContent,
           }}
         >
-          <div style={{ height: "100%", overflowY: tab === "metadata" ? "hidden" : "auto", padding: tab === "metadata" ? 0 : "24px" }}>
+          <div style={{ height: tab === "metadata" ? "100%" : undefined, overflowY: tab === "metadata" ? "hidden" : undefined, padding: tab === "metadata" ? 0 : "24px" }}>
             {tab === "details" && lorebook && (
               <DetailsTab lorebook={lorebook} lorebookId={lorebookId} onUpdated={onLorebookUpdated} addToast={addToast} />
             )}
