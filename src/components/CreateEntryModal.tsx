@@ -39,6 +39,12 @@ interface EntryField {
   sortOrder: number;
 }
 
+interface FormLayoutSection {
+  id: string;
+  aliasIds: string[];
+  rows: Array<{ id: string; columns: Array<{ id: string; fieldId?: string }> }>;
+}
+
 interface TargetAlias {
   id: string;
   singularName: string;
@@ -72,6 +78,7 @@ function DeferredLookupEditor({
   lorebookId,
   entryTypes,
   pending,
+  preloadedAliasMap,
   onAdd,
   onRemove,
   addToast,
@@ -80,6 +87,7 @@ function DeferredLookupEditor({
   lorebookId: string;
   entryTypes: EntryType[];
   pending: PendingRecord[];
+  preloadedAliasMap?: Record<string, { singularName: string; bgColor?: string; fgColor?: string }>;
   onAdd: (record: PendingRecord) => void;
   onRemove: (recordId: string) => void;
   addToast: (message: string, type?: "success" | "error") => void;
@@ -87,38 +95,13 @@ function DeferredLookupEditor({
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
-  const [aliasMap, setAliasMap] = useState<
-    Record<string, { singularName: string; bgColor?: string; fgColor?: string }>
-  >({});
   const [createTypeId, setCreateTypeId] = useState<string | null>(null);
 
   const targetIds: string[] = field.config?.targetEntryTypeIds || [];
   const pendingIds = new Set(pending.map((p) => p.recordId));
   const canAddMore = field.config?.multiselect !== false || pending.length === 0;
 
-  useEffect(() => {
-    if (targetIds.length === 0) return;
-    const fetchAliases = async () => {
-      const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
-      await Promise.all(
-        targetIds.map(async (typeId) => {
-          try {
-            const res = await fetch(
-              `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/aliases`,
-            );
-            if (res.ok) {
-              const data = await res.json();
-              for (const a of data.aliases || []) {
-                map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
-              }
-            }
-          } catch {}
-        }),
-      );
-      setAliasMap(map);
-    };
-    fetchAliases();
-  }, [lorebookId, targetIds.join(",")]);
+  const aliasMap = preloadedAliasMap ?? {};
 
   useEffect(() => {
     if (!search.trim()) { setResults([]); return; }
@@ -328,7 +311,9 @@ export default function CreateEntryModal({
   onClose,
 }: Props) {
   const [aliases, setAliases] = useState<TargetAlias[]>([]);
+  const [aliasMap, setAliasMap] = useState<Record<string, { singularName: string; bgColor?: string; fgColor?: string }>>({});
   const [fields, setFields] = useState<EntryField[]>([]);
+  const [formLayoutSections, setFormLayoutSections] = useState<FormLayoutSection[] | null>(null);
   const [loadingFields, setLoadingFields] = useState(true);
   const [values, setValues] = useState({
     name: initialName || "",
@@ -382,57 +367,103 @@ export default function CreateEntryModal({
     setSavingAlias(false);
   };
 
-  // Load aliases
+  // Load fields, form layout, and all needed aliases in one pass.
+  // Aliases for lookup target types are fetched together with the main type's
+  // aliases so that only one bulk aliases call is needed per modal open.
   useEffect(() => {
-    const fetchAliases = async () => {
-      try {
-        const res = await fetch(
-          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/aliases`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          let all: TargetAlias[] = data.aliases || [];
-          if (allowedAliasIds && allowedAliasIds.length > 0) {
-            const realIds = allowedAliasIds.filter((id) => id !== "__none__");
-            if (realIds.length > 0) {
-              all = all.filter((a) => realIds.includes(a.id));
-            } else {
-              // Only "__none__" was allowed — no named aliases can be selected
-              all = [];
-            }
-          }
-          setAliases(all);
-        }
-      } catch {}
-    };
-    fetchAliases();
-  }, [lorebookId, entryTypeId, (allowedAliasIds || []).join(",")]);
-
-  // Load fields
-  useEffect(() => {
-    const fetchFields = async () => {
+    const fetchData = async () => {
       setLoadingFields(true);
       try {
-        const res = await fetch(
-          `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setFields(data.fields || []);
+        const [fieldsRes, layoutRes] = await Promise.all([
+          fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`),
+          fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/form-layout`),
+        ]);
+
+        const loadedFields: EntryField[] = fieldsRes.ok ? (await fieldsRes.json()).fields || [] : [];
+        setFields(loadedFields);
+
+        if (layoutRes.ok) {
+          const data = await layoutRes.json();
+          setFormLayoutSections(data.formLayout?.sections ?? null);
+        }
+
+        // Collect all type IDs that need aliases: the main type + all lookup targets
+        const lookupTypeIds = loadedFields
+          .filter((f) => f.fieldType === "lookup")
+          .flatMap((f) => (f.config?.targetEntryTypeIds as string[]) || []);
+        const allTypeIds = [...new Set([entryTypeId, ...lookupTypeIds])];
+
+        const qs = new URLSearchParams({ typeIds: allTypeIds.join(",") });
+        const aliasRes = await fetch(`/api/lorekeeper/lorebooks/${lorebookId}/aliases?${qs}`);
+        if (aliasRes.ok) {
+          const { byTypeId } = await aliasRes.json();
+
+          // Main type aliases → subtype selector
+          let mainAliases: TargetAlias[] = byTypeId[entryTypeId] || [];
+          if (allowedAliasIds && allowedAliasIds.length > 0) {
+            const realIds = allowedAliasIds.filter((id) => id !== "__none__");
+            mainAliases = realIds.length > 0 ? mainAliases.filter((a) => realIds.includes(a.id)) : [];
+          }
+          setAliases(mainAliases);
+
+          // Flatten all aliases into a map keyed by alias ID for lookup display
+          const map: Record<string, { singularName: string; bgColor?: string; fgColor?: string }> = {};
+          for (const typeAliases of Object.values(byTypeId) as any[][]) {
+            for (const a of typeAliases) {
+              map[a.id] = { singularName: a.singularName, bgColor: a.bgColor, fgColor: a.fgColor };
+            }
+          }
+          setAliasMap(map);
         }
       } catch {}
       setLoadingFields(false);
     };
-    fetchFields();
-  }, [lorebookId, entryTypeId]);
+    fetchData();
+  }, [lorebookId, entryTypeId, (allowedAliasIds || []).join(",")]);
 
   const activeAliasId = values.aliasId;
 
+  // Compute which field IDs are visible, mirroring FormViewer's aliasIds logic.
+  // If no form layout exists, fall back to field-level aliasIds only.
+  const visibleFieldIds: Set<string> | null = (() => {
+    if (formLayoutSections === null) return null; // no layout loaded yet or none exists
+    const visible = new Set<string>();
+    for (const sec of formLayoutSections) {
+      // Section-level aliasIds filter (matches FormViewer exactly)
+      if (sec.aliasIds.length > 0) {
+        if (!activeAliasId) {
+          if (!sec.aliasIds.includes("__no_alias__")) continue;
+        } else {
+          if (!sec.aliasIds.filter((id: string) => id !== "__no_alias__").includes(activeAliasId)) continue;
+        }
+      }
+      // Section visible — collect fields that pass field-level aliasIds filter
+      for (const row of sec.rows) {
+        for (const col of row.columns) {
+          if (!col.fieldId) continue;
+          const field = fields.find((f) => f.id === col.fieldId);
+          if (!field) continue;
+          if (field.aliasIds && field.aliasIds.length > 0) {
+            if (!activeAliasId) {
+              if (!field.aliasIds.includes("__no_alias__")) continue;
+            } else {
+              if (!field.aliasIds.filter((id: string) => id !== "__no_alias__").includes(activeAliasId)) continue;
+            }
+          }
+          visible.add(col.fieldId);
+        }
+      }
+    }
+    return visible;
+  })();
+
   const visibleFields = fields
     .filter((f) => {
+      if (visibleFieldIds !== null) return visibleFieldIds.has(f.id);
+      // No form layout: apply field-level aliasIds allowlist only
       if (!f.aliasIds || f.aliasIds.length === 0) return true;
-      const otherIds = f.aliasIds.filter((id) => id !== "__none__");
-      if (!activeAliasId) return f.aliasIds.includes("__none__") || otherIds.length === 0;
+      const otherIds = f.aliasIds.filter((id) => id !== "__no_alias__");
+      if (!activeAliasId) return f.aliasIds.includes("__no_alias__") || otherIds.length === 0;
       return otherIds.includes(activeAliasId);
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -572,6 +603,7 @@ export default function CreateEntryModal({
           lorebookId={lorebookId}
           entryTypes={entryTypes}
           pending={fieldPending}
+          preloadedAliasMap={aliasMap}
           addToast={addToast}
           onAdd={(record) =>
             setPendingLookups((p) => ({

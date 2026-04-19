@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 6, "dev": 9 },
+  "version": { "major": 1, "minor": 6, "dev": 12 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -593,6 +593,11 @@
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/icon",
       "method": "POST",
       "description": "Upload entry type icon"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/aliases",
+      "method": "GET",
+      "description": "Bulk fetch aliases for multiple entry types by typeIds query param"
     },
     {
       "path": "lorebooks/[lorebook-id]/entry-types/[type-id]/aliases",

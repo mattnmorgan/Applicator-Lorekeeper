@@ -114,6 +114,8 @@ export async function GET(
         isGroup: t.isGroup ?? false,
         allowAliasCreation: t.allowAliasCreation ?? false,
         formLayout: t.formLayout ?? null,
+        secondaryFieldId: t.secondaryFieldId || null,
+        groupByFieldId: t.groupByFieldId || null,
         // Aliases for this entry type
         aliases: (aliasesByType[t.id] ?? []).map((r: any) => ({
           id: r.id,

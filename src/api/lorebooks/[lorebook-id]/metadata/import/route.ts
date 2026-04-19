@@ -199,6 +199,24 @@ export async function POST(
       await rm("entry_type").updateRecord(etTable, newId, { formLayout: remapped });
     }
 
+    // Pass 8: Apply secondaryFieldId and groupByFieldId (fieldIdMap is complete)
+    for (const { newId, source } of createdTypes) {
+      const patch: Record<string, string> = {};
+      if (source.secondaryFieldId && fieldIdMap[source.secondaryFieldId]) {
+        patch.secondaryFieldId = fieldIdMap[source.secondaryFieldId];
+      } else if (source.secondaryFieldId === "alias") {
+        patch.secondaryFieldId = "alias";
+      }
+      if (source.groupByFieldId && fieldIdMap[source.groupByFieldId]) {
+        patch.groupByFieldId = fieldIdMap[source.groupByFieldId];
+      } else if (source.groupByFieldId === "alias") {
+        patch.groupByFieldId = "alias";
+      }
+      if (Object.keys(patch).length > 0) {
+        await rm("entry_type").updateRecord(etTable, newId, patch);
+      }
+    }
+
     // Restore lorebook icon (field name "lorebook.icon" in v2, fallbacks for old formats)
     const lorebookIconData = body.lorebook?.icon || body.icon || body.lorebookIconBase64;
     if (lorebookIconData) {
