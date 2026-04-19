@@ -8,6 +8,7 @@ import {
   Modal,
   ConfirmModal,
   DynamicInput,
+  ImageUpload,
   Spinner,
   ToastStack,
   ProfileIndicator,
@@ -36,10 +37,10 @@ export default function LorebookList({ navigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [createValues, setCreateValues] = useState<Record<string, any>>({
+  const [createValues, setCreateValues] = useState<{ name: string; blurb: string; iconData: string | null }>({
     name: "",
     blurb: "",
-    iconData: "",
+    iconData: null,
   });
   const [creating, setCreating] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<LorebookEntry | null>(null);
@@ -89,7 +90,7 @@ export default function LorebookList({ navigate }: Props) {
       }
       const book = await res.json();
 
-      if (createValues.iconData) {
+      if (createValues.iconData?.startsWith("data:")) {
         await fetch(`/api/lorekeeper/lorebooks/${book.id}/icon`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -98,7 +99,7 @@ export default function LorebookList({ navigate }: Props) {
       }
 
       setShowCreate(false);
-      setCreateValues({ name: "", blurb: "", iconData: "" });
+      setCreateValues({ name: "", blurb: "", iconData: null });
       addToast("Lorebook created");
       navigate({ type: "lorebook", lorebookId: book.id });
     } catch {
@@ -388,10 +389,10 @@ export default function LorebookList({ navigate }: Props) {
               value={createValues.blurb ?? ""}
               onChange={(id, v) => setCreateValues((p) => ({ ...p, [id]: v }))}
             />
-            <DynamicInput
-              input={{ id: "iconData", label: "Icon (optional)", type: "file" }}
-              value={createValues.iconData ?? ""}
-              onChange={(id, v) => setCreateValues((p) => ({ ...p, [id]: v }))}
+            <ImageUpload
+              label="Icon (optional)"
+              value={createValues.iconData}
+              onChange={(dataUrl) => setCreateValues((p) => ({ ...p, iconData: dataUrl }))}
             />
           </div>
         </Modal>
