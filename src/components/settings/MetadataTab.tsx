@@ -385,6 +385,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setEntryTypes((prev) =>
         prev.map((t) => (t.id === activeTypeId ? { ...t, ...updated } : t)),
       );
+      if (field === "isGroup" && value) {
+        setActiveTab("details");
+      }
     } else addToast("Failed to save", "error");
   };
 
@@ -1143,10 +1146,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   (tab) => {
                     const label = tab.charAt(0).toUpperCase() + tab.slice(1);
                     const isActive = activeTab === tab;
+                    const isDisabled = !!activeType.isGroup && tab !== "details";
                     return (
                       <button
                         key={tab}
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => !isDisabled && setActiveTab(tab)}
+                        disabled={isDisabled}
                         style={{
                           padding: "6px 14px",
                           background: "none",
@@ -1154,9 +1159,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           borderBottom: isActive
                             ? "2px solid #3b82f6"
                             : "2px solid transparent",
-                          color: isActive ? "#f1f5f9" : "#64748b",
+                          color: isDisabled ? "#334155" : isActive ? "#f1f5f9" : "#64748b",
                           fontSize: 13,
-                          cursor: "pointer",
+                          cursor: isDisabled ? "not-allowed" : "pointer",
                           fontWeight: isActive ? 600 : 400,
                           transition: "color 0.12s, border-color 0.12s",
                         }}
@@ -1346,6 +1351,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 }
                               />
                             </div>
+                            {!activeType.isGroup && (
                             <div>
                               <div
                                 style={{
@@ -1372,6 +1378,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 }
                               />
                             </div>
+                            )}
                           </div>
                           {/* Summary */}
                           <InlineEdit
@@ -1381,7 +1388,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             multiline
                           />
                           {/* Badge colors */}
-                          <div
+                          {!activeType.isGroup && <div
                             style={{
                               display: "grid",
                               gridTemplateColumns: "1fr 1fr 1fr",
@@ -1506,9 +1513,9 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                 )}
                               </div>
                             </div>
-                          </div>
+                          </div>}
                           {/* Secondary display field + Group by */}
-                          {(() => {
+                          {!activeType.isGroup && (() => {
                             const eligibleFields = fields
                               .filter((f) =>
                                 f.fieldType === "text" || f.fieldType === "picklist" || f.fieldType === "lookup"
@@ -1594,7 +1601,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                       )}
 
                       {/* Aliases */}
-                      <div
+                      {!activeType.isGroup && <div
                         style={{
                           display: "flex",
                           flexDirection: "column",
@@ -1962,7 +1969,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                             )}
                           </div>
                         ))}
-                      </div>
+                      </div>}
                     </div>
                   )}
 
@@ -3570,14 +3577,26 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   type: "badge-multiselect",
                   tooltip:
                     "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                  options: [...aliases]
-                    .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
-                    .map((a) => ({
-                      value: a.id,
-                      label: a.pluralName,
-                      selectedColor: a.bgColor || "#334155",
-                      fgColor: a.fgColor || "#f1f5f9",
-                    })),
+                  options: [
+                    ...(activeType
+                      ? [
+                          {
+                            value: "__no_alias__",
+                            label: activeType.pluralName,
+                            selectedColor: activeType.bgColor || "#334155",
+                            fgColor: activeType.fgColor || "#f1f5f9",
+                          },
+                        ]
+                      : []),
+                    ...[...aliases]
+                      .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                      .map((a) => ({
+                        value: a.id,
+                        label: a.pluralName,
+                        selectedColor: a.bgColor || "#334155",
+                        fgColor: a.fgColor || "#f1f5f9",
+                      })),
+                  ],
                 }}
                 value={newRelSecAliasIds}
                 onChange={(_, v) => setNewRelSecAliasIds(v as string[])}
@@ -3627,14 +3646,26 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 type: "badge-multiselect",
                 tooltip:
                   "Leave empty to show for all aliases. Select one or more to restrict visibility.",
-                options: [...aliases]
-                  .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
-                  .map((a) => ({
-                    value: a.id,
-                    label: a.pluralName,
-                    selectedColor: a.bgColor || "#334155",
-                    fgColor: a.fgColor || "#f1f5f9",
-                  })),
+                options: [
+                  ...(activeType
+                    ? [
+                        {
+                          value: "__no_alias__",
+                          label: activeType.pluralName,
+                          selectedColor: activeType.bgColor || "#334155",
+                          fgColor: activeType.fgColor || "#f1f5f9",
+                        },
+                      ]
+                    : []),
+                  ...[...aliases]
+                    .sort((a, b) => a.pluralName.localeCompare(b.pluralName))
+                    .map((a) => ({
+                      value: a.id,
+                      label: a.pluralName,
+                      selectedColor: a.bgColor || "#334155",
+                      fgColor: a.fgColor || "#f1f5f9",
+                    })),
+                ],
               }}
               value={editRelSecAliasIds}
               onChange={(_, v) => setEditRelSecAliasIds(v as string[])}
