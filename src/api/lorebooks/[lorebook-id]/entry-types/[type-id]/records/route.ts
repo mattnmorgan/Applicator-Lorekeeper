@@ -14,8 +14,10 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
     const aliasId = searchParams.get("aliasId") || "";
-    // lookupFieldId: field whose linked record names should be resolved (for display/grouping)
+    // lookupFieldId: field whose linked record names should be resolved (for grouping)
     const lookupFieldId = searchParams.get("lookupFieldId") || "";
+    // secondaryLookupFieldId: lookup field shown as secondary display — resolved separately
+    const secondaryLookupFieldId = searchParams.get("secondaryLookupFieldId") || "";
     // secondaryFieldId: field shown as secondary display — also searched when search is provided
     const secondaryFieldId = searchParams.get("secondaryFieldId") || "";
 
@@ -75,15 +77,58 @@ export async function GET(
       } catch {}
     }
 
+    // Resolve secondary lookup field separately when it differs from the groupBy lookup
+    let secondaryLookupData: Record<string, any[]> = {};
+    if (secondaryLookupFieldId && secondaryLookupFieldId !== lookupFieldId && items.length > 0) {
+      try {
+        const slRM = context.recordManager("lorekeeper", "record_lookup");
+        const slResult = await slRM.readRecords({
+          filters: [
+            { field: "lorebookId", operator: "=", value: params.lorebookId },
+            { field: "customFieldId", operator: "=", value: secondaryLookupFieldId },
+          ],
+          condition: "1 AND 2",
+          limit: 20000,
+        });
+
+        const recordIdSet = new Set(items.map((r: any) => r.id));
+        const relevantSL = slResult.records.filter((lr: any) => recordIdSet.has(lr.data.record1));
+        const sl2Ids = [...new Set(relevantSL.map((lr: any) => lr.data.record2 as string))];
+
+        const slEntryRM = context.recordManager("lorekeeper", "entry_record");
+        const slEntryMap: Record<string, { name: string; hasIcon: boolean; entryTypeId: string }> = {};
+        await Promise.all(
+          sl2Ids.map(async (rid) => {
+            try {
+              const r = await slEntryRM.readRecord(rid);
+              if (r) slEntryMap[rid] = { name: r.data.name || "", hasIcon: !!r.data.hasIcon, entryTypeId: r.data.entryTypeId || "" };
+            } catch {}
+          })
+        );
+
+        for (const lr of relevantSL) {
+          const rec1 = lr.data.record1 as string;
+          const rec2 = lr.data.record2 as string;
+          const entry = slEntryMap[rec2];
+          if (entry?.name) {
+            if (!secondaryLookupData[rec1]) secondaryLookupData[rec1] = [];
+            secondaryLookupData[rec1].push({ id: rec2, ...entry });
+          }
+        }
+      } catch {}
+    } else if (secondaryLookupFieldId && secondaryLookupFieldId === lookupFieldId) {
+      secondaryLookupData = lookupData;
+    }
+
     if (search) {
       const q = search.toLowerCase();
       items = items.filter((r: any) => {
         if (r.name?.toLowerCase().includes(q)) return true;
         if (r.blurb?.toLowerCase().includes(q)) return true;
         if (secondaryFieldId) {
-          if (secondaryFieldId === lookupFieldId) {
+          if (secondaryLookupFieldId && secondaryLookupFieldId === secondaryFieldId) {
             // Lookup field: search resolved linked record names
-            const names = (lookupData[r.id] || []).map((e: any) => e.name || "");
+            const names = (secondaryLookupData[r.id] || lookupData[r.id] || []).map((e: any) => e.name || "");
             if (names.some((n: string) => n.toLowerCase().includes(q))) return true;
           } else {
             // Text or picklist: search the raw fieldData value(s)
@@ -99,17 +144,22 @@ export async function GET(
       });
 
       // Drop lookup entries for records that were filtered out
+      const filteredIds = new Set(items.map((r: any) => r.id));
       if (lookupFieldId) {
-        const filteredIds = new Set(items.map((r: any) => r.id));
         for (const key of Object.keys(lookupData)) {
           if (!filteredIds.has(key)) delete lookupData[key];
+        }
+      }
+      if (secondaryLookupFieldId && secondaryLookupFieldId !== lookupFieldId) {
+        for (const key of Object.keys(secondaryLookupData)) {
+          if (!filteredIds.has(key)) delete secondaryLookupData[key];
         }
       }
     }
 
     items.sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-    return NextResponse.json({ records: items, total: items.length, lookupData });
+    return NextResponse.json({ records: items, total: items.length, lookupData, secondaryLookupData });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -146,6 +146,7 @@ export default function EntryTypeRecords({
   const [showPrint, setShowPrint] = useState(false);
   const [fields, setFields] = useState<EntryField[]>([]);
   const [lookupData, setLookupData] = useState<Record<string, LookupEntry[]>>({});
+  const [secondaryLookupData, setSecondaryLookupData] = useState<Record<string, LookupEntry[]>>({});
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const aliases = aliasesByTypeId[entryTypeId] || [];
@@ -170,10 +171,10 @@ export default function EntryTypeRecords({
       // Pass the secondary field ID so the server can include its values in the
       // search filter. "alias" is a sentinel (not a real field ID) so skip it.
       if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("secondaryFieldId", secondaryFieldId);
-      // Pass the lookup field ID for name resolution (group-by takes priority).
-      const resolveFieldId = (groupByFieldId && groupByFieldId !== "alias" ? groupByFieldId : null)
-        ?? (secondaryFieldId && secondaryFieldId !== "alias" ? secondaryFieldId : null);
-      if (resolveFieldId) qs.set("lookupFieldId", resolveFieldId);
+      // lookupFieldId resolves names for groupBy; secondaryLookupFieldId resolves names for secondary display.
+      if (groupByFieldId && groupByFieldId !== "alias") qs.set("lookupFieldId", groupByFieldId);
+      else if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("lookupFieldId", secondaryFieldId);
+      if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("secondaryLookupFieldId", secondaryFieldId);
 
       const params = qs.toString() ? `?${qs.toString()}` : "";
       const res = await fetch(
@@ -183,6 +184,7 @@ export default function EntryTypeRecords({
         const data = await res.json();
         setRecords(data.records || []);
         setLookupData(data.lookupData || {});
+        setSecondaryLookupData(data.secondaryLookupData || data.lookupData || {});
       }
     } catch {}
     setLoading(false);
@@ -226,7 +228,7 @@ export default function EntryTypeRecords({
     const q = search.toLowerCase();
     if (r.name?.toLowerCase().includes(q) || r.blurb?.toLowerCase().includes(q)) return true;
     if (secondaryField) {
-      const values = getSecondaryValues(r, secondaryField, lookupData);
+      const values = getSecondaryValues(r, secondaryField, secondaryLookupData);
       if (values.some((v) => v.toLowerCase().includes(q))) return true;
     }
     return false;
@@ -265,7 +267,7 @@ export default function EntryTypeRecords({
     let secondaryContent: React.ReactNode = null;
     if (secondaryField) {
       if (secondaryField.fieldType === "lookup") {
-        const entries = lookupData[record.id] || [];
+        const entries = secondaryLookupData[record.id] || [];
         if (entries.length > 0) {
           secondaryContent = (
             <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, maxWidth: 160, overflow: "hidden" }}>
@@ -296,7 +298,7 @@ export default function EntryTypeRecords({
           );
         }
       } else {
-        const values = getSecondaryValues(record, secondaryField, lookupData);
+        const values = getSecondaryValues(record, secondaryField, secondaryLookupData);
         if (values.length > 0) {
           secondaryContent = (
             <span style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
