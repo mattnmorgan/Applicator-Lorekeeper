@@ -334,9 +334,56 @@ export default function EntryRecordView({
     if (!record) return;
     // Validate required fields against the effective (staged) lookup state
     const activeAliasId = editValues.aliasId || "";
+
+    // Compute which fields are visible (mirrors CreateEntryModal visibility logic)
+    const visibleFieldIds: Set<string> | null = (() => {
+      const fl = entryType?.formLayout;
+      if (!fl || fl.sections.length === 0) return null;
+      const formLayout = fl;
+      const visible = new Set<string>();
+      for (const sec of formLayout.sections) {
+        if (sec.aliasIds.length > 0) {
+          if (!activeAliasId) {
+            if (!sec.aliasIds.includes("__no_alias__")) continue;
+          } else {
+            if (!sec.aliasIds.filter((id: string) => id !== "__no_alias__").includes(activeAliasId)) continue;
+          }
+        }
+        for (const row of sec.rows) {
+          for (const col of row.columns) {
+            if (!col.fieldId) continue;
+            const field = fields.find((f) => f.id === col.fieldId);
+            if (!field) continue;
+            if (field.aliasIds && field.aliasIds.length > 0) {
+              const otherIds = field.aliasIds.filter((id: string) => id !== "__no_alias__");
+              if (!activeAliasId) {
+                if (!field.aliasIds.includes("__no_alias__") && otherIds.length > 0) continue;
+              } else {
+                if (!otherIds.includes(activeAliasId)) continue;
+              }
+            }
+            visible.add(col.fieldId);
+          }
+        }
+      }
+      return visible;
+    })();
+
     const missingRequired = fields.filter((f) => {
       if (!f.required) return false;
-      if (f.aliasIds && f.aliasIds.length > 0 && !f.aliasIds.includes(activeAliasId)) return false;
+      // Skip fields not visible in the current form layout
+      if (visibleFieldIds !== null) {
+        if (!visibleFieldIds.has(f.id)) return false;
+      } else {
+        if (f.aliasIds && f.aliasIds.length > 0) {
+          const otherIds = f.aliasIds.filter((id) => id !== "__no_alias__");
+          if (!activeAliasId) {
+            if (!f.aliasIds.includes("__no_alias__") && otherIds.length > 0) return false;
+          } else {
+            if (!otherIds.includes(activeAliasId)) return false;
+          }
+        }
+      }
       if (f.fieldType === "lookup") {
         return (
           effectiveLookups.filter(
