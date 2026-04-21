@@ -1519,19 +1519,7 @@ export default function EntryRecordView({
                     <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>
                       {r.name}
                     </span>
-                    {r.blurb && (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "#64748b",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          maxWidth: 200,
-                        }}
-                      >
-                        {r.blurb}
-                      </span>
-                    )}
+
                     {badgeName && (
                       <span
                         style={{
