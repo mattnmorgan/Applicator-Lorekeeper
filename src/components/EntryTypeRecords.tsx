@@ -142,6 +142,7 @@ export default function EntryTypeRecords({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch || "");
   const [deleteTarget, setDeleteTarget] = useState<EntryRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [fields, setFields] = useState<EntryField[]>([]);
@@ -201,6 +202,7 @@ export default function EntryTypeRecords({
   }, [search]);
 
   const handleDelete = async (record: EntryRecord) => {
+    setDeleting(true);
     try {
       const res = await fetch(
         `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records/${record.id}`,
@@ -215,6 +217,8 @@ export default function EntryTypeRecords({
       }
     } catch {
       addToast("Failed to delete entry", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -588,6 +592,7 @@ export default function EntryTypeRecords({
           message={`Delete "${deleteTarget.name}"? This will clear all related lookups and cannot be undone.`}
           confirmText="Delete"
           danger
+          loading={deleting}
           onConfirm={() => handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />

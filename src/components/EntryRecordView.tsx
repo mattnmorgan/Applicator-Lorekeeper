@@ -158,6 +158,7 @@ export default function EntryRecordView({
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [previewFile, setPreviewFile] = useState<Attachment | null>(null);
   const [uploading, setUploading] = useState<{ current: number; total: number } | null>(null);
@@ -459,6 +460,7 @@ export default function EntryRecordView({
   };
 
   const handleDelete = async () => {
+    setDeleting(true);
     try {
       const res = await fetch(baseUrl, { method: "DELETE" });
       if (res.ok) {
@@ -467,6 +469,8 @@ export default function EntryRecordView({
       } else addToast("Failed to delete", "error");
     } catch {
       addToast("Failed to delete", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1824,6 +1828,7 @@ export default function EntryRecordView({
           message={`Delete "${record.name}"? This cannot be undone.`}
           confirmText="Delete"
           danger
+          loading={deleting}
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
         />
