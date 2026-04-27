@@ -87,6 +87,10 @@ const FIELD_TYPES = [
   "picklist",
   "toggle",
   "number",
+  "date",
+  "datetime",
+  "color",
+  "range",
   "lookup",
 ];
 const FIELD_TYPE_LABELS: Record<string, string> = {
@@ -95,6 +99,10 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   picklist: "Picklist",
   toggle: "Toggle",
   number: "Number",
+  date: "Date",
+  datetime: "Datetime",
+  color: "Color",
+  range: "Range",
   lookup: "Lookup",
 };
 
@@ -525,6 +533,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         unit: values.unit || "",
         unitPosition: values.unitPosition || "suffix",
       };
+    if (values.fieldType === "range")
+      return {
+        min: values.min ?? 0,
+        max: values.max ?? 100,
+        step: values.step ?? 1,
+      };
     if (values.fieldType === "lookup")
       return {
         multiselect: !!values.lookupMultiselect,
@@ -606,6 +620,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       max: cfg.max ?? "",
       unit: cfg.unit || "",
       unitPosition: cfg.unitPosition || "suffix",
+      // range
+      step: cfg.step ?? 1,
       // lookup
       aToB: cfg.aToB || "",
       bToA: cfg.bToA || "",
@@ -671,6 +687,12 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         max: editFieldValues.max || undefined,
         unit: editFieldValues.unit || "",
         unitPosition: editFieldValues.unitPosition || "suffix",
+      };
+    if (editingField.fieldType === "range")
+      updates.config = {
+        min: editFieldValues.min ?? 0,
+        max: editFieldValues.max ?? 100,
+        step: editFieldValues.step ?? 1,
       };
     if (editingField.fieldType === "lookup")
       updates.config = {
@@ -1528,9 +1550,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                           </div>}
                           {/* Secondary display field + Group by */}
                           {!activeType.isGroup && (() => {
-                            const eligibleFields = fields
+                            const searchableFields = fields
                               .filter((f) =>
-                                f.fieldType === "text" || f.fieldType === "picklist" || f.fieldType === "lookup"
+                                f.fieldType === "text" || f.fieldType === "picklist" || f.fieldType === "lookup" ||
+                                f.fieldType === "date" || f.fieldType === "datetime" || f.fieldType === "range"
+                              )
+                              .sort((a, b) => a.name.localeCompare(b.name));
+                            const groupableFields = fields
+                              .filter((f) =>
+                                f.fieldType === "text" || f.fieldType === "picklist" || f.fieldType === "lookup" ||
+                                f.fieldType === "date"
                               )
                               .sort((a, b) => a.name.localeCompare(b.name));
                             return (
@@ -1565,7 +1594,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                     }}
                                   >
                                     <option value="">Alias / Subtype</option>
-                                    {eligibleFields.map((f) => (
+                                    {searchableFields.map((f) => (
                                       <option key={f.id} value={f.id}>{f.name}</option>
                                     ))}
                                   </select>
@@ -1601,7 +1630,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                                   >
                                     <option value="">None</option>
                                     <option value="alias">Alias / Subtype</option>
-                                    {eligibleFields.map((f) => (
+                                    {groupableFields.map((f) => (
                                       <option key={f.id} value={f.id}>{f.name}</option>
                                     ))}
                                   </select>
@@ -3042,6 +3071,37 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 </div>
               </>
             )}
+            {fieldValues.fieldType === "range" && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <DynamicInput
+                  input={{ id: "min", label: "Min", type: "number" }}
+                  value={fieldValues.min ?? 0}
+                  onChange={(id, v) =>
+                    setFieldValues((p) => ({ ...p, [id]: v === "" ? 0 : Number(v) }))
+                  }
+                />
+                <DynamicInput
+                  input={{ id: "max", label: "Max", type: "number" }}
+                  value={fieldValues.max ?? 100}
+                  onChange={(id, v) =>
+                    setFieldValues((p) => ({ ...p, [id]: v === "" ? 100 : Number(v) }))
+                  }
+                />
+                <DynamicInput
+                  input={{ id: "step", label: "Step", type: "number", min: "0.001" }}
+                  value={fieldValues.step ?? 1}
+                  onChange={(id, v) =>
+                    setFieldValues((p) => ({ ...p, [id]: v === "" ? 1 : Number(v) }))
+                  }
+                />
+              </div>
+            )}
             {fieldValues.fieldType === "lookup" && (
               <>
                 <DynamicInput
@@ -3402,6 +3462,37 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   </div>
                 </div>
               </>
+            )}
+            {editingField.fieldType === "range" && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <DynamicInput
+                  input={{ id: "min", label: "Min", type: "number" }}
+                  value={editFieldValues.min ?? 0}
+                  onChange={(id, v) =>
+                    setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 0 : Number(v) }))
+                  }
+                />
+                <DynamicInput
+                  input={{ id: "max", label: "Max", type: "number" }}
+                  value={editFieldValues.max ?? 100}
+                  onChange={(id, v) =>
+                    setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 100 : Number(v) }))
+                  }
+                />
+                <DynamicInput
+                  input={{ id: "step", label: "Step", type: "number", min: "0.001" }}
+                  value={editFieldValues.step ?? 1}
+                  onChange={(id, v) =>
+                    setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 1 : Number(v) }))
+                  }
+                />
+              </div>
             )}
             {editingField.fieldType === "lookup" && (
               <>

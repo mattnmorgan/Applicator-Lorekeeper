@@ -612,6 +612,57 @@ export default function PrintModal({
       );
     }
 
+    if (field.fieldType === "date" || field.fieldType === "datetime") {
+      if (!value) return empty;
+      return <span style={{ color: "#111" }}>{String(value)}</span>;
+    }
+
+    if (field.fieldType === "color") {
+      if (!value) return empty;
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: 2,
+              background: value,
+              border: "1px solid #e2e8f0",
+              flexShrink: 0,
+              display: "inline-block",
+            }}
+          />
+          <span style={{ color: "#111" }}>{value}</span>
+        </div>
+      );
+    }
+
+    if (field.fieldType === "range") {
+      if (value === null || value === undefined || value === "") return empty;
+      const min = field.config?.min ?? 0;
+      const max = field.config?.max ?? 100;
+      const pct = Math.max(0, Math.min(100, ((Number(value) - min) / (max - min)) * 100));
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: "#111" }}>{String(value)}</span>
+          <div
+            style={{
+              display: "inline-block",
+              width: 60,
+              height: 4,
+              background: "#e2e8f0",
+              borderRadius: 2,
+              overflow: "hidden",
+              verticalAlign: "middle",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ height: "100%", background: "#3b82f6", width: `${pct}%` }} />
+          </div>
+        </div>
+      );
+    }
+
     if (!value && value !== 0 && value !== false) return empty;
     return <span style={{ color: "#111" }}>{String(value)}</span>;
   };

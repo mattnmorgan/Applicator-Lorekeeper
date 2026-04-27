@@ -130,14 +130,14 @@ export async function GET(
             // Lookup field: search resolved linked record names
             const names = (secondaryLookupData[r.id] || lookupData[r.id] || []).map((e: any) => e.name || "");
             if (names.some((n: string) => n.toLowerCase().includes(q))) return true;
-          } else {
-            // Text or picklist: search the raw fieldData value(s)
-            const val = r.fieldData?.[secondaryFieldId];
-            if (Array.isArray(val)) {
-              if (val.some((v: any) => String(v).toLowerCase().includes(q))) return true;
-            } else if (val !== undefined && val !== null && String(val).toLowerCase().includes(q)) {
-              return true;
-            }
+          }
+          // Also search raw fieldData for non-lookup types (text, date, datetime, range, etc.)
+          // Lookup fields store nothing in fieldData so this branch is a no-op for them.
+          const val = r.fieldData?.[secondaryFieldId];
+          if (Array.isArray(val)) {
+            if (val.some((v: any) => String(v).toLowerCase().includes(q))) return true;
+          } else if (val !== undefined && val !== null && val !== "" && String(val).toLowerCase().includes(q)) {
+            return true;
           }
         }
         return false;

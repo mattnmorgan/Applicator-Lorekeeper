@@ -44,7 +44,7 @@ export async function POST(
     if (!body.name?.trim()) {
       return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
-    const validTypes = ["text", "rich_text", "picklist", "toggle", "number", "lookup"];
+    const validTypes = ["text", "rich_text", "picklist", "toggle", "number", "lookup", "date", "datetime", "color", "range"];
     if (!body.fieldType || !validTypes.includes(body.fieldType)) {
       return NextResponse.json({ error: "Invalid fieldType" }, { status: 400 });
     }

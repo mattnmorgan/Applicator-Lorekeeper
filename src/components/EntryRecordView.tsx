@@ -727,6 +727,52 @@ export default function EntryRecordView({
         </span>
       );
     }
+    if (field.fieldType === "date" || field.fieldType === "datetime") {
+      if (!value) return <span style={{ color: "#64748b" }}>—</span>;
+      return <span>{String(value)}</span>;
+    }
+    if (field.fieldType === "color") {
+      if (!value) return <span style={{ color: "#64748b" }}>—</span>;
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 3,
+              background: value,
+              border: "1px solid #334155",
+              flexShrink: 0,
+            }}
+          />
+          <span>{value}</span>
+        </div>
+      );
+    }
+    if (field.fieldType === "range") {
+      if (value === null || value === undefined || value === "")
+        return <span style={{ color: "#64748b" }}>—</span>;
+      const min = field.config?.min ?? 0;
+      const max = field.config?.max ?? 100;
+      const pct = Math.max(0, Math.min(100, ((Number(value) - min) / (max - min)) * 100));
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span>{String(value)}</span>
+          <div
+            style={{
+              width: 80,
+              height: 4,
+              background: "#1e293b",
+              borderRadius: 2,
+              overflow: "hidden",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ height: "100%", background: "#3b82f6", width: `${pct}%` }} />
+          </div>
+        </div>
+      );
+    }
     if (!value && value !== 0 && value !== false)
       return <span style={{ color: "#64748b" }}>—</span>;
     return <span>{String(value)}</span>;
@@ -855,6 +901,55 @@ export default function EntryRecordView({
           value={value || ""}
           onChange={(_, v) => setFieldValue(field.id, v)}
         />
+      );
+    }
+    if (field.fieldType === "date") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "date" }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "datetime") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "datetime" }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "color") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "color" }}
+          value={value || "#3b82f6"}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "range") {
+      const min = cfg.min ?? 0;
+      const max = cfg.max ?? 100;
+      const step = cfg.step ?? 1;
+      const numVal = value !== null && value !== undefined && value !== "" ? Number(value) : min;
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={numVal}
+            onChange={(e) => setFieldValue(field.id, Number(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontSize: 13, color: "#e2e8f0", minWidth: 32, textAlign: "right" }}>
+            {numVal}
+          </span>
+        </div>
       );
     }
     if (field.fieldType === "lookup") {
