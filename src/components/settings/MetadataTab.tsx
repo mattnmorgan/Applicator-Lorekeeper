@@ -6,7 +6,6 @@ import {
   ButtonIcon,
   Icon,
   Modal,
-  ConfirmModal,
   DynamicInput,
   Spinner,
   ImageUpload,
@@ -140,6 +139,8 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<EntryType | null>(
     null,
   );
+  const [deleteTypeFields, setDeleteTypeFields] = useState<EntryField[] | null>(null);
+  const [deletingType, setDeletingType] = useState(false);
 
   // Alias CRUD
   const [showCreateAlias, setShowCreateAlias] = useState(false);
@@ -325,6 +326,15 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
     }
   }, [activeTypeId]);
 
+  useEffect(() => {
+    if (!deleteTypeTarget) { setDeleteTypeFields(null); return; }
+    setDeleteTypeFields(null);
+    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${deleteTypeTarget.id}/fields`)
+      .then((r) => r.ok ? r.json() : { fields: [] })
+      .then((d) => setDeleteTypeFields(d.fields || []))
+      .catch(() => setDeleteTypeFields([]));
+  }, [deleteTypeTarget?.id]);
+
   // ── Entry type CRUD ─────────────────────────────────────────────────────────
 
   const handleCreateType = async () => {
@@ -393,6 +403,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
 
   const handleDeleteType = async () => {
     if (!deleteTypeTarget) return;
+    setDeletingType(true);
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${deleteTypeTarget.id}`,
       { method: "DELETE" },
@@ -404,6 +415,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       setActiveTypeId(remaining.length > 0 ? remaining[0].id : null);
       setDeleteTypeTarget(null);
     } else addToast("Failed to delete", "error");
+    setDeletingType(false);
   };
 
   // ── Alias CRUD ──────────────────────────────────────────────────────────────
@@ -3864,14 +3876,53 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       )}
 
       {deleteTypeTarget && (
-        <ConfirmModal
-          title="Delete Entry Type"
-          message={`Delete "${deleteTypeTarget.pluralName}" and all its fields, sections, and records?`}
-          confirmText="Delete"
-          danger
-          onConfirm={handleDeleteType}
-          onCancel={() => setDeleteTypeTarget(null)}
-        />
+        <Modal
+          header={`Delete "${deleteTypeTarget.pluralName}"?`}
+          closeable
+          onClose={() => { if (!deletingType) setDeleteTypeTarget(null); }}
+          maxWidth={460}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setDeleteTypeTarget(null)} disabled={deletingType}>Cancel</Button>
+              <Button
+                variant="danger"
+                onClick={handleDeleteType}
+                disabled={deleteTypeFields === null || deletingType}
+              >
+                {deletingType ? "Deleting…" : "Delete"}
+              </Button>
+            </>
+          }
+        >
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 14, color: "#e2e8f0", lineHeight: 1.6 }}>
+              This will permanently delete <strong>{deleteTypeTarget.pluralName}</strong> along with all its records, sections, and custom fields. This cannot be undone.
+            </div>
+            {deleteTypeFields === null && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+                <Spinner />
+              </div>
+            )}
+            {deleteTypeFields && deleteTypeFields.length > 0 && (
+              <div style={{ background: "#1e293b", borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#fca5a5", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Custom fields that will be deleted
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {deleteTypeFields.map((f) => (
+                    <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#cbd5e1" }}>
+                      <span style={{ color: "#475569", flexShrink: 0 }}>•</span>
+                      <span>{f.name}</span>
+                      <span style={{ color: "#64748b", fontSize: 12, marginLeft: "auto", flexShrink: 0 }}>
+                        {FIELD_TYPE_LABELS[f.fieldType] || f.fieldType}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );
