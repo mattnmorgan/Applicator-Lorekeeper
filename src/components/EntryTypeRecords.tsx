@@ -148,6 +148,7 @@ export default function EntryTypeRecords({
   const [fields, setFields] = useState<EntryField[]>([]);
   const [lookupData, setLookupData] = useState<Record<string, LookupEntry[]>>({});
   const [secondaryLookupData, setSecondaryLookupData] = useState<Record<string, LookupEntry[]>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const aliases = aliasesByTypeId[entryTypeId] || [];
@@ -195,6 +196,29 @@ export default function EntryTypeRecords({
     setSearch("");
     fetchRecords("");
   }, [entryTypeId, aliasId]);
+
+  // Restore collapsed group state: localStorage first (instant), then sync from API
+  const collapsePrefKey = `group-collapse:${entryTypeId}`;
+  useEffect(() => {
+    const lsKey = `lk:group-collapse:${lorebookId}:${entryTypeId}`;
+    try {
+      const raw = localStorage.getItem(lsKey);
+      setCollapsedGroups(raw ? new Set(JSON.parse(raw)) : new Set());
+    } catch {
+      setCollapsedGroups(new Set());
+    }
+    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.prefs) return;
+        const serverVal = data.prefs[collapsePrefKey];
+        if (!Array.isArray(serverVal)) return;
+        const next = new Set<string>(serverVal);
+        setCollapsedGroups(next);
+        try { localStorage.setItem(lsKey, JSON.stringify(serverVal)); } catch {}
+      })
+      .catch(() => {});
+  }, [lorebookId, entryTypeId]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchRecords(search), 200);
@@ -262,6 +286,26 @@ export default function EntryTypeRecords({
       arr.sort((a, b) => a.name.localeCompare(b.name));
     }
     return map;
+  };
+
+  const saveCollapsed = (next: Set<string>) => {
+    setCollapsedGroups(next);
+    const arr = [...next];
+    try {
+      localStorage.setItem(`lk:group-collapse:${lorebookId}:${entryTypeId}`, JSON.stringify(arr));
+    } catch {}
+    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: collapsePrefKey, value: arr }),
+    }).catch(() => {});
+  };
+
+  const toggleGroup = (key: string) => {
+    const next = new Set(collapsedGroups);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    saveCollapsed(next);
   };
 
   const renderRecord = (record: EntryRecord) => {
@@ -426,25 +470,34 @@ export default function EntryTypeRecords({
       : null;
 
     return sortedKeys.map((key) => {
+      const collapsed = collapsedGroups.has(key);
       const lookupEntry = lookupNameMap?.get(key);
       return (
         <div key={key}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 16px",
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#64748b",
-            background: "#0c1a2e",
-            borderBottom: "1px solid #1e293b",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            position: "sticky",
-            top: 0,
-            zIndex: 1,
-          }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 16px",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#64748b",
+              background: "#0c1a2e",
+              borderBottom: "1px solid #1e293b",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+            onClick={() => toggleGroup(key)}
+          >
+            <span style={{ color: "#475569", flexShrink: 0, display: "flex", alignItems: "center" }}>
+              <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={13} />
+            </span>
             {lookupEntry && (
               <div style={{
                 width: 16, height: 16, borderRadius: 3, overflow: "hidden", flexShrink: 0,
@@ -468,7 +521,7 @@ export default function EntryTypeRecords({
               ({groups.get(key)!.length})
             </span>
           </div>
-          {groups.get(key)!.map((record) => renderRecord(record))}
+          {!collapsed && groups.get(key)!.map((record) => renderRecord(record))}
         </div>
       );
     });
@@ -519,6 +572,27 @@ export default function EntryTypeRecords({
           </div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
+          {(groupByField || groupByAlias) && (() => {
+            const groups = buildGroups(filtered);
+            const allCollapsed = [...groups.keys()].every((k) => collapsedGroups.has(k));
+            const allExpanded = [...groups.keys()].every((k) => !collapsedGroups.has(k));
+            return (
+              <>
+                <ButtonIcon
+                  name="chevrons-up"
+                  label="Collapse all groups"
+                  disabled={allCollapsed}
+                  onClick={() => saveCollapsed(new Set(groups.keys()))}
+                />
+                <ButtonIcon
+                  name="chevrons-down"
+                  label="Expand all groups"
+                  disabled={allExpanded}
+                  onClick={() => saveCollapsed(new Set())}
+                />
+              </>
+            );
+          })()}
           <ButtonIcon
             name="print"
             label={`Print ${aliasName || entryType?.pluralName || "entries"}`}

@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 7, "dev": 2 },
+  "version": { "major": 1, "minor": 7, "dev": 4 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -484,6 +484,16 @@
           "type": "boolean"
         }
       ]
+    },
+    {
+      "name": "user_pref",
+      "description": "Per-user key-value preferences scoped to a lorebook",
+      "fields": [
+        { "name": "lorebookId", "description": "Parent lorebook", "type": "relationship", "relatedTo": "lorebook", "required": true },
+        { "name": "userId", "description": "User this preference belongs to", "type": "relationship", "relatedTo": "system:user", "required": true },
+        { "name": "key", "description": "Preference key", "type": "string", "required": true },
+        { "name": "value", "description": "Preference value (JSON-serialized)", "type": "json" }
+      ]
     }
   ],
   "authorizations": [
@@ -813,7 +823,17 @@
       "method": "POST",
       "description": "Import metadata into a lorebook"
     },
-    { "path": "users", "method": "GET", "description": "Search users" }
+    { "path": "users", "method": "GET", "description": "Search users" },
+    {
+      "path": "lorebooks/[lorebook-id]/prefs",
+      "method": "GET",
+      "description": "Get all preferences for the current user in a lorebook"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/prefs",
+      "method": "PUT",
+      "description": "Upsert a preference by key for the current user in a lorebook"
+    }
   ],
   "agents": [],
   "applets": [
