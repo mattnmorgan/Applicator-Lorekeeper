@@ -595,6 +595,55 @@ export default function CreateEntryModal({
         />
       );
     }
+    if (field.fieldType === "date") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "date" }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "datetime") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "datetime" }}
+          value={value || ""}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "color") {
+      return (
+        <DynamicInput
+          input={{ id: field.id, label: "", type: "color" }}
+          value={value || "#3b82f6"}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
+      );
+    }
+    if (field.fieldType === "range") {
+      const min = cfg.min ?? 0;
+      const max = cfg.max ?? 100;
+      const step = cfg.step ?? 1;
+      const numVal = value !== null && value !== undefined && value !== "" ? Number(value) : min;
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={numVal}
+            onChange={(e) => setFieldValue(field.id, Number(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontSize: 13, color: "#e2e8f0", minWidth: 32, textAlign: "right" }}>
+            {numVal}
+          </span>
+        </div>
+      );
+    }
     if (field.fieldType === "lookup") {
       const fieldPending = pendingLookups[field.id] || [];
       return (
