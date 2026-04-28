@@ -612,9 +612,13 @@ export default function PrintModal({
       );
     }
 
-    if (field.fieldType === "date" || field.fieldType === "datetime") {
+    if (field.fieldType === "date") {
       if (!value) return empty;
       return <span style={{ color: "#111" }}>{String(value)}</span>;
+    }
+    if (field.fieldType === "datetime") {
+      if (!value) return empty;
+      return <span style={{ color: "#111" }}>{String(value).replace("T", " ")}</span>;
     }
 
     if (field.fieldType === "color") {
@@ -696,13 +700,15 @@ export default function PrintModal({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {formLayout.sections.map((sec) => {
-          // Section alias visibility: empty aliasIds = show for all aliases
-          if (
-            sec.aliasIds &&
-            sec.aliasIds.length > 0 &&
-            (!activeAliasId || !sec.aliasIds.includes(activeAliasId))
-          ) {
-            return null;
+          // Section alias visibility: empty aliasIds = show for all aliases.
+          // "__no_alias__" sentinel = visible when the record has no alias.
+          if (sec.aliasIds && sec.aliasIds.length > 0) {
+            const realIds = sec.aliasIds.filter((id) => id !== "__no_alias__");
+            if (!activeAliasId) {
+              if (!sec.aliasIds.includes("__no_alias__") && realIds.length > 0) return null;
+            } else {
+              if (!realIds.includes(activeAliasId)) return null;
+            }
           }
 
           // Check if any columns in this section have visible fields
@@ -711,12 +717,12 @@ export default function PrintModal({
               if (!col.fieldId) return false;
               const field = fields.find((f) => f.id === col.fieldId);
               if (!field) return false;
-              if (
-                field.aliasIds &&
-                field.aliasIds.length > 0 &&
-                (!activeAliasId || !field.aliasIds.includes(activeAliasId))
-              ) {
-                return false;
+              if (field.aliasIds && field.aliasIds.length > 0) {
+                if (!activeAliasId) {
+                  if (!field.aliasIds.includes(activeAliasId)) return false;
+                } else if (!field.aliasIds.includes(activeAliasId)) {
+                  return false;
+                }
               }
               return true;
             }),

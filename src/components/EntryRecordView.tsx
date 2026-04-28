@@ -727,9 +727,13 @@ export default function EntryRecordView({
         </span>
       );
     }
-    if (field.fieldType === "date" || field.fieldType === "datetime") {
+    if (field.fieldType === "date") {
       if (!value) return <span style={{ color: "#64748b" }}>—</span>;
       return <span>{String(value)}</span>;
+    }
+    if (field.fieldType === "datetime") {
+      if (!value) return <span style={{ color: "#64748b" }}>—</span>;
+      return <span>{String(value).replace("T", " ")}</span>;
     }
     if (field.fieldType === "color") {
       if (!value) return <span style={{ color: "#64748b" }}>—</span>;
@@ -762,7 +766,7 @@ export default function EntryRecordView({
             style={{
               width: 80,
               height: 4,
-              background: "#1e293b",
+              background: "#334155",
               borderRadius: 2,
               overflow: "hidden",
               flexShrink: 0,
