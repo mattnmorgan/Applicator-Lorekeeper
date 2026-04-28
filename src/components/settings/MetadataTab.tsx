@@ -91,6 +91,7 @@ const FIELD_TYPES = [
   "datetime",
   "color",
   "range",
+  "radial_graph",
   "lookup",
 ];
 const FIELD_TYPE_LABELS: Record<string, string> = {
@@ -103,6 +104,7 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   datetime: "Datetime",
   color: "Color",
   range: "Range",
+  radial_graph: "Radial Graph",
   lookup: "Lookup",
 };
 
@@ -547,6 +549,14 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         aToB: values.aToB || "",
         bToA: values.bToA || "",
       };
+    if (values.fieldType === "radial_graph")
+      return {
+        dimensions: values.dimensions || [],
+        min: values.min ?? 0,
+        max: values.max ?? 10,
+        step: values.step ?? 1,
+        defaultValue: values.defaultValue || "",
+      };
     return {};
   };
 
@@ -565,7 +575,7 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
           fieldType: fieldValues.fieldType,
           config: buildFieldConfig(fieldValues),
           aliasIds: fieldValues.aliasIds || [],
-          required: !!fieldValues.required,
+          required: fieldValues.fieldType === "radial_graph" ? false : !!fieldValues.required,
           tooltip: fieldValues.tooltip || "",
         }),
       },
@@ -620,8 +630,11 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
       max: cfg.max ?? "",
       unit: cfg.unit || "",
       unitPosition: cfg.unitPosition || "suffix",
-      // range
+      // range / radial_graph
       step: cfg.step ?? 1,
+      // radial_graph
+      dimensions: cfg.dimensions || [],
+      defaultValue: cfg.defaultValue || "",
       // lookup
       aToB: cfg.aToB || "",
       bToA: cfg.bToA || "",
@@ -702,6 +715,16 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
         targetEntryTypeIds: editFieldValues.targetTypeIds || [],
         targetAliasIds: editFieldValues.targetAliasIds || [],
       };
+    if (editingField.fieldType === "radial_graph") {
+      updates.config = {
+        dimensions: editFieldValues.dimensions || [],
+        min: editFieldValues.min ?? 0,
+        max: editFieldValues.max ?? 10,
+        step: editFieldValues.step ?? 1,
+        defaultValue: editFieldValues.defaultValue || "",
+      };
+      updates.required = false;
+    }
     const res = await fetch(
       `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${activeTypeId}/fields/${editingField.id}`,
       {
@@ -2893,11 +2916,13 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 value={fieldValues.fieldType}
                 onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
               />
-              <DynamicInput
-                input={{ id: "required", label: "Required", type: "toggle" }}
-                value={!!fieldValues.required}
-                onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
-              />
+              {fieldValues.fieldType !== "radial_graph" && (
+                <DynamicInput
+                  input={{ id: "required", label: "Required", type: "toggle" }}
+                  value={!!fieldValues.required}
+                  onChange={(id, v) => setFieldValues((p) => ({ ...p, [id]: v }))}
+                />
+              )}
             </div>
             {aliases.length > 0 && (
               <DynamicInput
@@ -3227,6 +3252,114 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                 </div>
               </>
             )}
+            {fieldValues.fieldType === "radial_graph" && (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <DynamicInput
+                    input={{ id: "min", label: "Min", type: "number" }}
+                    value={fieldValues.min ?? 0}
+                    onChange={(id, v) =>
+                      setFieldValues((p) => ({ ...p, [id]: v === "" ? 0 : Number(v) }))
+                    }
+                  />
+                  <DynamicInput
+                    input={{ id: "max", label: "Max", type: "number" }}
+                    value={fieldValues.max ?? 10}
+                    onChange={(id, v) =>
+                      setFieldValues((p) => ({ ...p, [id]: v === "" ? 10 : Number(v) }))
+                    }
+                  />
+                  <DynamicInput
+                    input={{ id: "step", label: "Step", type: "number", min: "0.001" }}
+                    value={fieldValues.step ?? 1}
+                    onChange={(id, v) =>
+                      setFieldValues((p) => ({ ...p, [id]: v === "" ? 1 : Number(v) }))
+                    }
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, marginBottom: 6 }}>
+                    Dimensions
+                    <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6, fontWeight: 400 }}>
+                      1–10 axes
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {((fieldValues.dimensions as Array<{ abbr: string; label: string }>) || []).map(
+                      (dim, idx) => (
+                        <div key={idx} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto", gap: 8, alignItems: "center" }}>
+                          <DynamicInput
+                            input={{ id: `dim_abbr_${idx}`, label: idx === 0 ? "Abbr" : "", type: "text", placeholder: "ABC" }}
+                            value={dim.abbr}
+                            onChange={(_, v) => {
+                              const dims = [...((fieldValues.dimensions as Array<{ abbr: string; label: string }>) || [])];
+                              dims[idx] = { ...dims[idx], abbr: String(v).slice(0, 3) };
+                              setFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                          />
+                          <DynamicInput
+                            input={{ id: `dim_label_${idx}`, label: idx === 0 ? "Label" : "", type: "text", placeholder: "Full name" }}
+                            value={dim.label}
+                            onChange={(_, v) => {
+                              const dims = [...((fieldValues.dimensions as Array<{ abbr: string; label: string }>) || [])];
+                              dims[idx] = { ...dims[idx], label: String(v) };
+                              setFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dims = ((fieldValues.dimensions as Array<{ abbr: string; label: string }>) || []).filter((_, i) => i !== idx);
+                              setFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#f87171",
+                              cursor: "pointer",
+                              padding: "0 4px",
+                              fontSize: 16,
+                              lineHeight: 1,
+                              marginTop: idx === 0 ? 18 : 0,
+                            }}
+                            title="Remove dimension"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    )}
+                    {((fieldValues.dimensions as Array<unknown>) || []).length < 10 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dims = [...((fieldValues.dimensions as Array<{ abbr: string; label: string }>) || []), { abbr: "", label: "" }];
+                          setFieldValues((p) => ({ ...p, dimensions: dims }));
+                        }}
+                        style={{
+                          background: "none",
+                          border: "1px dashed #334155",
+                          borderRadius: 6,
+                          color: "#64748b",
+                          cursor: "pointer",
+                          padding: "5px 10px",
+                          fontSize: 12,
+                          textAlign: "left",
+                        }}
+                      >
+                        + Add dimension
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
@@ -3260,19 +3393,21 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
               gap: 12,
             }}
           >
-            <DynamicInput
-              input={{
-                id: "required",
-                label: "Required",
-                type: "toggle",
-                tooltip:
-                  "Entry records cannot be saved without a value for this field",
-              }}
-              value={!!editFieldValues.required}
-              onChange={(id, v) =>
-                setEditFieldValues((p) => ({ ...p, [id]: v }))
-              }
-            />
+            {editingField.fieldType !== "radial_graph" && (
+              <DynamicInput
+                input={{
+                  id: "required",
+                  label: "Required",
+                  type: "toggle",
+                  tooltip:
+                    "Entry records cannot be saved without a value for this field",
+                }}
+                value={!!editFieldValues.required}
+                onChange={(id, v) =>
+                  setEditFieldValues((p) => ({ ...p, [id]: v }))
+                }
+              />
+            )}
             <DynamicInput
               input={{
                 id: "tooltip",
@@ -3612,6 +3747,114 @@ export default function MetadataTab({ lorebookId, canEdit, addToast }: Props) {
                   <span style={{ fontSize: 13, color: "#f1f5f9" }}>
                     {(editingField.config as any)?.multiselect ? "Yes" : "No"}
                   </span>
+                </div>
+              </>
+            )}
+            {editingField.fieldType === "radial_graph" && (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <DynamicInput
+                    input={{ id: "min", label: "Min", type: "number" }}
+                    value={editFieldValues.min ?? 0}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 0 : Number(v) }))
+                    }
+                  />
+                  <DynamicInput
+                    input={{ id: "max", label: "Max", type: "number" }}
+                    value={editFieldValues.max ?? 10}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 10 : Number(v) }))
+                    }
+                  />
+                  <DynamicInput
+                    input={{ id: "step", label: "Step", type: "number", min: "0.001" }}
+                    value={editFieldValues.step ?? 1}
+                    onChange={(id, v) =>
+                      setEditFieldValues((p) => ({ ...p, [id]: v === "" ? 1 : Number(v) }))
+                    }
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, marginBottom: 6 }}>
+                    Dimensions
+                    <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6, fontWeight: 400 }}>
+                      1–10 axes
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {((editFieldValues.dimensions as Array<{ abbr: string; label: string }>) || []).map(
+                      (dim, idx) => (
+                        <div key={idx} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto", gap: 8, alignItems: "center" }}>
+                          <DynamicInput
+                            input={{ id: `edim_abbr_${idx}`, label: idx === 0 ? "Abbr" : "", type: "text", placeholder: "ABC" }}
+                            value={dim.abbr}
+                            onChange={(_, v) => {
+                              const dims = [...((editFieldValues.dimensions as Array<{ abbr: string; label: string }>) || [])];
+                              dims[idx] = { ...dims[idx], abbr: String(v).slice(0, 3) };
+                              setEditFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                          />
+                          <DynamicInput
+                            input={{ id: `edim_label_${idx}`, label: idx === 0 ? "Label" : "", type: "text", placeholder: "Full name" }}
+                            value={dim.label}
+                            onChange={(_, v) => {
+                              const dims = [...((editFieldValues.dimensions as Array<{ abbr: string; label: string }>) || [])];
+                              dims[idx] = { ...dims[idx], label: String(v) };
+                              setEditFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dims = ((editFieldValues.dimensions as Array<{ abbr: string; label: string }>) || []).filter((_, i) => i !== idx);
+                              setEditFieldValues((p) => ({ ...p, dimensions: dims }));
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#f87171",
+                              cursor: "pointer",
+                              padding: "0 4px",
+                              fontSize: 16,
+                              lineHeight: 1,
+                              marginTop: idx === 0 ? 18 : 0,
+                            }}
+                            title="Remove dimension"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    )}
+                    {((editFieldValues.dimensions as Array<unknown>) || []).length < 10 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dims = [...((editFieldValues.dimensions as Array<{ abbr: string; label: string }>) || []), { abbr: "", label: "" }];
+                          setEditFieldValues((p) => ({ ...p, dimensions: dims }));
+                        }}
+                        style={{
+                          background: "none",
+                          border: "1px dashed #334155",
+                          borderRadius: 6,
+                          color: "#64748b",
+                          cursor: "pointer",
+                          padding: "5px 10px",
+                          fontSize: 12,
+                          textAlign: "left",
+                        }}
+                      >
+                        + Add dimension
+                      </button>
+                    )}
+                  </div>
                 </div>
               </>
             )}

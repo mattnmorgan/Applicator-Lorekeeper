@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 7, "dev": 5 },
+  "version": { "major": 1, "minor": 8, "dev": 1 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -289,7 +289,8 @@
             "datetime": "Datetime",
             "color": "Color",
             "range": "Range",
-            "lookup": "Lookup"
+            "lookup": "Lookup",
+            "radial_graph": "Radial Graph"
           }
         },
         {

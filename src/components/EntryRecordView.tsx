@@ -777,6 +777,26 @@ export default function EntryRecordView({
         </div>
       );
     }
+    if (field.fieldType === "radial_graph") {
+      const sets = Array.isArray(value) ? value : [];
+      if (sets.length === 0) return <span style={{ color: "#64748b" }}>—</span>;
+      return (
+        <DynamicInput
+          input={{
+            id: field.id,
+            label: "",
+            type: "radial-graph",
+            disabled: true,
+            min: String(field.config?.min ?? 0),
+            max: String(field.config?.max ?? 10),
+            step: String(field.config?.step ?? 1),
+            dimensions: field.config?.dimensions || [],
+          }}
+          value={value}
+          onChange={() => {}}
+        />
+      );
+    }
     if (!value && value !== 0 && value !== false)
       return <span style={{ color: "#64748b" }}>—</span>;
     return <span>{String(value)}</span>;
@@ -954,6 +974,26 @@ export default function EntryRecordView({
             {numVal}
           </span>
         </div>
+      );
+    }
+    if (field.fieldType === "radial_graph") {
+      const defaultVal = cfg.defaultValue;
+      const resolvedValue = value !== undefined && value !== null ? value
+        : (defaultVal ? (() => { try { return JSON.parse(defaultVal); } catch { return []; } })() : []);
+      return (
+        <DynamicInput
+          input={{
+            id: field.id,
+            label: "",
+            type: "radial-graph",
+            min: String(cfg.min ?? 0),
+            max: String(cfg.max ?? 10),
+            step: String(cfg.step ?? 1),
+            dimensions: cfg.dimensions || [],
+          }}
+          value={resolvedValue}
+          onChange={(_, v) => setFieldValue(field.id, v)}
+        />
       );
     }
     if (field.fieldType === "lookup") {

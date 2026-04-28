@@ -28,7 +28,7 @@ export interface EntrySection {
   config?: { aliasIds?: string[] };
 }
 
-export type FieldType = "text" | "rich_text" | "picklist" | "toggle" | "number" | "lookup";
+export type FieldType = "text" | "rich_text" | "picklist" | "toggle" | "number" | "lookup" | "date" | "datetime" | "color" | "range" | "radial_graph";
 
 export interface PicklistConfig {
   options: Array<{ value: string; label: string }>;
@@ -40,6 +40,14 @@ export interface NumberConfig {
   decimals: number;
   min?: number;
   max?: number;
+}
+
+export interface RadialGraphConfig {
+  dimensions: Array<{ abbr: string; label: string }>;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue?: string;
 }
 
 export interface LookupConfig {

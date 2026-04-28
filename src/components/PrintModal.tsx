@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Icon, Spinner } from "@applicator/sdk/components";
+import { Icon, Spinner, DynamicInput } from "@applicator/sdk/components";
 import type { FormLayout } from "@applicator/sdk/components";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -664,6 +664,27 @@ export default function PrintModal({
             <div style={{ height: "100%", background: "#3b82f6", width: `${pct}%` }} />
           </div>
         </div>
+      );
+    }
+
+    if (field.fieldType === "radial_graph") {
+      const sets = Array.isArray(value) ? value : [];
+      if (sets.length === 0) return empty;
+      return (
+        <DynamicInput
+          input={{
+            id: field.id,
+            label: "",
+            type: "radial-graph",
+            disabled: true,
+            min: String(field.config?.min ?? 0),
+            max: String(field.config?.max ?? 10),
+            step: String(field.config?.step ?? 1),
+            dimensions: field.config?.dimensions || [],
+          }}
+          value={value}
+          onChange={() => {}}
+        />
       );
     }
 
