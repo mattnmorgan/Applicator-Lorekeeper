@@ -31,6 +31,22 @@ interface EntryType {
   sortOrder: number;
   isGroup?: boolean;
   allowAliasCreation?: boolean;
+  secondaryFieldId?: string;
+  groupByFieldId?: string;
+}
+
+interface EntryField {
+  id: string;
+  name: string;
+  fieldType: string;
+  config: any;
+}
+
+interface LookupEntry {
+  id: string;
+  name: string;
+  hasIcon: boolean;
+  entryTypeId: string;
 }
 
 interface EntryTypeAlias {
@@ -49,6 +65,8 @@ interface EntryRecord {
   blurb: string;
   hasIcon: boolean;
   entryTypeId: string;
+  aliasId?: string;
+  fieldData?: Record<string, any>;
 }
 
 interface LorebookCtx {
@@ -65,6 +83,56 @@ type View =
   | { screen: "entry-types"; lorebook: LorebookEntry }
   | { screen: "records"; lorebook: LorebookEntry; entryType: EntryType }
   | { screen: "record"; lorebook: LorebookEntry; entryType: EntryType; recordId: string };
+
+// ─── Secondary / group-by helpers ────────────────────────────────────────────
+
+function resolvePicklistLabel(field: EntryField, value: any): string {
+  if (!value && value !== 0) return "";
+  const options: Array<{ value: string; label: string }> = field.config?.options || [];
+  const lookup = (v: string) => options.find((o) => o.value === v)?.label || v;
+  if (Array.isArray(value)) return value.map(lookup).filter(Boolean).join(", ");
+  return lookup(String(value));
+}
+
+function getSecondaryValues(
+  record: EntryRecord,
+  field: EntryField,
+  lookupData: Record<string, LookupEntry[]>,
+): string[] {
+  if (field.fieldType === "lookup") return (lookupData[record.id] || []).map((e) => e.name);
+  if (field.fieldType === "picklist") {
+    const label = resolvePicklistLabel(field, record.fieldData?.[field.id]);
+    return label ? [label] : [];
+  }
+  const v = record.fieldData?.[field.id];
+  return v ? [String(v)] : [];
+}
+
+function getGroupKeys(
+  record: EntryRecord,
+  field: EntryField,
+  lookupData: Record<string, LookupEntry[]>,
+): string[] {
+  if (field.fieldType === "lookup") {
+    const entries = lookupData[record.id] || [];
+    return entries.length > 0 ? entries.map((e) => e.name) : ["(None)"];
+  }
+  if (field.fieldType === "picklist") {
+    const raw = record.fieldData?.[field.id];
+    if (!raw && raw !== 0) return ["(None)"];
+    if (Array.isArray(raw)) {
+      const labels = (raw as string[]).map((v) => {
+        const opt = (field.config?.options || []).find((o: any) => o.value === v);
+        return opt ? opt.label : v;
+      }).filter(Boolean);
+      return labels.length > 0 ? labels : ["(None)"];
+    }
+    const label = resolvePicklistLabel(field, raw);
+    return label ? [label] : ["(None)"];
+  }
+  const v = record.fieldData?.[field.id];
+  return v ? [String(v)] : ["(None)"];
+}
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
@@ -708,10 +776,21 @@ function RecordsScreen({
   addToast: (t: ToastItem) => void;
 }) {
   const [records, setRecords] = useState<EntryRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [fields, setFields] = useState<EntryField[]>([]);
+  const [lookupData, setLookupData] = useState<Record<string, LookupEntry[]>>({});
+  const [secondaryLookupData, setSecondaryLookupData] = useState<Record<string, LookupEntry[]>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const prevSignal = React.useRef(createSignal);
+  const collapseKeyRef = React.useRef("");
+  const skipNextCollapseSave = React.useRef(false);
+
+  const secondaryFieldId = entryType.secondaryFieldId || "";
+  const groupByFieldId = entryType.groupByFieldId || "";
+  const groupByAlias = groupByFieldId === "alias";
+  const aliases = ctx.aliasesByTypeId[entryType.id] || [];
 
   // Open create modal when signal fires
   useEffect(() => {
@@ -721,38 +800,288 @@ function RecordsScreen({
     }
   }, [createSignal, ctx.canEdit]);
 
-  const loadRecords = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entryType.id}/records`)
+  // Fetch field definitions for secondary/group-by resolution
+  useEffect(() => {
+    fetch(`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entryType.id}/fields`)
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        setRecords(data?.records || data || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        addToast({ message: "Failed to load records", type: "error" });
-        setLoading(false);
-      });
+      .then((data) => setFields(data?.fields || []))
+      .catch(() => setFields([]));
   }, [lorebook.id, entryType.id]);
 
-  useEffect(() => { loadRecords(); }, [loadRecords]);
+  // Restore collapsed groups from localStorage
+  useEffect(() => {
+    const lsKey = `lk:group-collapse:${lorebook.id}:${entryType.id}`;
+    collapseKeyRef.current = lsKey;
+    skipNextCollapseSave.current = true;
+    try {
+      const raw = localStorage.getItem(lsKey);
+      setCollapsedGroups(raw ? new Set(JSON.parse(raw)) : new Set());
+    } catch {
+      setCollapsedGroups(new Set());
+    }
+  }, [lorebook.id, entryType.id]);
+
+  // Persist collapsed groups to localStorage
+  useEffect(() => {
+    if (skipNextCollapseSave.current) {
+      skipNextCollapseSave.current = false;
+      return;
+    }
+    if (!collapseKeyRef.current) return;
+    try {
+      localStorage.setItem(collapseKeyRef.current, JSON.stringify([...collapsedGroups]));
+    } catch {}
+  }, [collapsedGroups]);
+
+  const loadRecords = useCallback(async (currentSearch: string) => {
+    try {
+      const qs = new URLSearchParams();
+      if (currentSearch) qs.set("search", currentSearch);
+      if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("secondaryFieldId", secondaryFieldId);
+      if (groupByFieldId && groupByFieldId !== "alias") qs.set("lookupFieldId", groupByFieldId);
+      else if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("lookupFieldId", secondaryFieldId);
+      if (secondaryFieldId && secondaryFieldId !== "alias") qs.set("secondaryLookupFieldId", secondaryFieldId);
+      const params = qs.toString() ? `?${qs.toString()}` : "";
+      const res = await fetch(`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entryType.id}/records${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecords(data.records || data || []);
+        setLookupData(data.lookupData || {});
+        setSecondaryLookupData(data.secondaryLookupData || data.lookupData || {});
+      }
+    } catch {
+      addToast({ message: "Failed to load records", type: "error" });
+    }
+    setInitialLoading(false);
+  }, [lorebook.id, entryType.id, secondaryFieldId, groupByFieldId]);
+
+  useEffect(() => {
+    setSearch("");
+    setInitialLoading(true);
+    loadRecords("");
+  }, [entryType.id]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadRecords(search), 200);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const groupByField = (!groupByAlias && groupByFieldId) ? fields.find((f) => f.id === groupByFieldId) ?? null : null;
+  const secondaryField = secondaryFieldId ? fields.find((f) => f.id === secondaryFieldId) ?? null : null;
 
   const filtered = useMemo(() => {
     if (!search.trim()) return records;
     const q = search.toLowerCase();
-    return records.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        (r.blurb && r.blurb.toLowerCase().includes(q)),
-    );
-  }, [search, records]);
+    return records.filter((r) => {
+      if (r.name?.toLowerCase().includes(q) || r.blurb?.toLowerCase().includes(q)) return true;
+      if (secondaryField) {
+        const values = getSecondaryValues(r, secondaryField, secondaryLookupData);
+        if (values.some((v) => v.toLowerCase().includes(q))) return true;
+      }
+      return false;
+    });
+  }, [search, records, secondaryField, secondaryLookupData]);
 
   const addToastStr = useCallback(
     (message: string, type?: "success" | "error") => addToast({ message, type: type ?? "success" }),
     [addToast],
   );
 
-  if (loading) {
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  type GroupMap = Map<string, EntryRecord[]>;
+
+  const buildGroups = (items: EntryRecord[]): GroupMap => {
+    const map: GroupMap = new Map();
+    for (const record of items) {
+      let keys: string[];
+      if (groupByAlias) {
+        const alias = record.aliasId ? aliases.find((a) => a.id === record.aliasId) : undefined;
+        keys = alias ? [alias.singularName] : ["(None)"];
+      } else if (groupByField) {
+        keys = getGroupKeys(record, groupByField, lookupData);
+      } else {
+        keys = ["__all__"];
+      }
+      for (const key of keys) {
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(record);
+      }
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
+    return map;
+  };
+
+  const renderSecondaryContent = (record: EntryRecord): React.ReactNode => {
+    if (secondaryField) {
+      if (secondaryField.fieldType === "lookup") {
+        const entries = secondaryLookupData[record.id] || [];
+        if (entries.length === 0) return null;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0, maxWidth: 120, overflow: "hidden" }}>
+            {entries.map((entry) => (
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, overflow: "hidden" }}>
+                <div style={{ width: 14, height: 14, borderRadius: 2, overflow: "hidden", flexShrink: 0, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {entry.hasIcon ? (
+                    <img src={`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entry.entryTypeId}/records/${entry.id}/icon`} style={{ width: 14, height: 14, objectFit: "cover" }} alt="" />
+                  ) : (
+                    <span style={{ color: "#475569" }}>
+                      <Icon name={(ctx.entryTypes.find((t) => t.id === entry.entryTypeId)?.icon as any) || "file"} size={9} />
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {entry.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      const values = getSecondaryValues(record, secondaryField, secondaryLookupData);
+      if (values.length === 0) return null;
+      return (
+        <span style={{ fontSize: 10, color: "#94a3b8", flexShrink: 0, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {values.join(", ")}
+        </span>
+      );
+    }
+    if (record.aliasId) {
+      const alias = aliases.find((a) => a.id === record.aliasId);
+      if (alias) {
+        return (
+          <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: alias.bgColor || "#1e293b", color: alias.fgColor || "#94a3b8", flexShrink: 0 }}>
+            {alias.singularName}
+          </span>
+        );
+      }
+    }
+    return null;
+  };
+
+  const renderRecord = (rec: EntryRecord) => (
+    <HoverRow key={rec.id} onClick={() => onView(rec.id)}>
+      <div style={S.icon28}>
+        {rec.hasIcon
+          ? <img src={`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entryType.id}/records/${rec.id}/icon`} style={{ width: 28, height: 28, objectFit: "cover" }} alt="" />
+          : <TypeIcon type={entryType} lorebookId={lorebook.id} size={14} />
+        }
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={S.name}>{rec.name}</div>
+        {rec.blurb && <div style={S.sub}>{rec.blurb}</div>}
+      </div>
+      {renderSecondaryContent(rec)}
+      <span style={{ color: "#334155", flexShrink: 0 }}>
+        <Icon name="chevron-right" size={14} />
+      </span>
+    </HoverRow>
+  );
+
+  const renderList = () => {
+    if (filtered.length === 0) {
+      return (
+        <div style={S.empty}>
+          <span style={{ color: "#334155" }}><Icon name="file" size={28} /></span>
+          {search ? "No matches" : `No ${entryType.pluralName.toLowerCase()} yet`}
+          {!search && ctx.canEdit && (
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{ marginTop: 4, background: "none", border: "1px solid #334155", borderRadius: 6, color: "#94a3b8", fontSize: 12, padding: "4px 12px", cursor: "pointer" }}
+            >
+              Create one
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    if (!groupByField && !groupByAlias) {
+      return <>{filtered.map((rec) => renderRecord(rec))}</>;
+    }
+
+    const groups = buildGroups(filtered);
+    const sortedKeys = [...groups.keys()].sort((a, b) => {
+      if (a === "(None)") return 1;
+      if (b === "(None)") return -1;
+      return a.localeCompare(b);
+    });
+
+    const lookupNameMap = (groupByField?.fieldType === "lookup")
+      ? (() => {
+          const map = new Map<string, LookupEntry>();
+          for (const entries of Object.values(lookupData)) {
+            for (const entry of entries) {
+              if (!map.has(entry.name)) map.set(entry.name, entry);
+            }
+          }
+          return map;
+        })()
+      : null;
+
+    return (
+      <>
+        {sortedKeys.map((key) => {
+          const collapsed = collapsedGroups.has(key);
+          const lookupEntry = lookupNameMap?.get(key);
+          return (
+            <div key={key}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 12px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  background: "#080f1c",
+                  borderBottom: "1px solid #1e293b",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => toggleGroup(key)}
+              >
+                <span style={{ color: "#475569", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                  <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={11} />
+                </span>
+                {lookupEntry && (
+                  <div style={{ width: 14, height: 14, borderRadius: 2, overflow: "hidden", flexShrink: 0, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {lookupEntry.hasIcon ? (
+                      <img src={`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${lookupEntry.entryTypeId}/records/${lookupEntry.id}/icon`} style={{ width: 14, height: 14, objectFit: "cover" }} alt="" />
+                    ) : (
+                      <span style={{ color: "#475569" }}>
+                        <Icon name={(ctx.entryTypes.find((t) => t.id === lookupEntry.entryTypeId)?.icon as any) || "file"} size={9} />
+                      </span>
+                    )}
+                  </div>
+                )}
+                {key}
+                <span style={{ marginLeft: 1, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                  ({groups.get(key)!.length})
+                </span>
+              </div>
+              {!collapsed && groups.get(key)!.map((rec) => renderRecord(rec))}
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
+  if (initialLoading) {
     return (
       <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: 40 }}>
         <Spinner />
@@ -762,7 +1091,7 @@ function RecordsScreen({
 
   return (
     <>
-      {records.length > 0 && (
+      {(records.length > 0 || search.length > 0) && (
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -770,40 +1099,7 @@ function RecordsScreen({
         />
       )}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {records.length === 0 ? (
-          <div style={S.empty}>
-            <span style={{ color: "#334155" }}><Icon name="file" size={28} /></span>
-            No {entryType.pluralName.toLowerCase()} yet
-            {ctx.canEdit && (
-              <button
-                onClick={() => setShowCreate(true)}
-                style={{ marginTop: 4, background: "none", border: "1px solid #334155", borderRadius: 6, color: "#94a3b8", fontSize: 12, padding: "4px 12px", cursor: "pointer" }}
-              >
-                Create one
-              </button>
-            )}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={S.empty}>No matches</div>
-        ) : (
-          filtered.map((rec) => (
-            <HoverRow key={rec.id} onClick={() => onView(rec.id)}>
-              <div style={S.icon28}>
-                {rec.hasIcon
-                  ? <img src={`/api/lorekeeper/lorebooks/${lorebook.id}/entry-types/${entryType.id}/records/${rec.id}/icon`} style={{ width: 28, height: 28, objectFit: "cover" }} alt="" />
-                  : <TypeIcon type={entryType} lorebookId={lorebook.id} size={14} />
-                }
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.name}>{rec.name}</div>
-                {rec.blurb && <div style={S.sub}>{rec.blurb}</div>}
-              </div>
-              <span style={{ color: "#334155", flexShrink: 0 }}>
-                <Icon name="chevron-right" size={14} />
-              </span>
-            </HoverRow>
-          ))
-        )}
+        {renderList()}
       </div>
 
       {showCreate && (
@@ -814,7 +1110,7 @@ function RecordsScreen({
           addToast={addToastStr}
           onCreated={(record) => {
             setShowCreate(false);
-            loadRecords();
+            loadRecords("");
             onCreated(record);
           }}
           onClose={() => setShowCreate(false)}
