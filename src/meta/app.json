@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 8, "dev": 4 },
+  "version": { "major": 1, "minor": 8, "dev": 6 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",

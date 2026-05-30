@@ -2033,6 +2033,7 @@ function LookupFieldEditor({
 }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
+  const [groupLookupData, setGroupLookupData] = useState<Record<string, any[]>>({});
   const [open, setOpen] = useState(false);
   const [createTypeId, setCreateTypeId] = useState<string | null>(null);
 
@@ -2056,7 +2057,7 @@ function LookupFieldEditor({
   }, [aliasesByTypeId, targetIds.join(",")]);
 
   useEffect(() => {
-    if (!search.trim()) { setResults([]); return; }
+    if (!search.trim()) { setResults([]); setGroupLookupData({}); return; }
     const controller = new AbortController();
     const targetAliasIds: string[] = Array.isArray(field.config?.targetAliasIds)
       ? field.config.targetAliasIds
@@ -2065,6 +2066,7 @@ function LookupFieldEditor({
     const t = setTimeout(async () => {
       const seen = new Set<string>();
       const all: any[] = [];
+      const allGroupLookupData: Record<string, any[]> = {};
       for (const typeId of targetIds) {
         try {
           const et = entryTypes.find((t) => t.id === typeId);
@@ -2080,12 +2082,16 @@ function LookupFieldEditor({
           for (const aliasQuery of aliasQueries) {
             const qs = new URLSearchParams({ search });
             if (aliasQuery && aliasQuery !== "__none__") qs.set("aliasId", aliasQuery);
+            if (et?.groupByFieldId && et.groupByFieldId !== "alias") {
+              qs.set("lookupFieldId", et.groupByFieldId);
+            }
             const res = await fetch(
               `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${typeId}/records?${qs}`,
               { signal: controller.signal },
             );
             if (!res.ok) continue;
             const data = await res.json();
+            if (data.lookupData) Object.assign(allGroupLookupData, data.lookupData);
             for (const r of data.records || []) {
               if (seen.has(r.id) || existingIds.has(r.id) || r.id === recordId) continue;
               // For the __none__ batch, only include records that truly have no alias
@@ -2097,6 +2103,7 @@ function LookupFieldEditor({
         } catch {}
       }
       setResults(all.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+      setGroupLookupData(allGroupLookupData);
     }, 200);
     return () => { clearTimeout(t); controller.abort(); };
   }, [search, lorebookId, fieldLookups.length]);
@@ -2190,6 +2197,24 @@ function LookupFieldEditor({
             >
               {results.map((r) => {
                 const et = r.entryType as EntryType | undefined;
+                const groupByFieldId = et?.groupByFieldId;
+                const groupMeta: string | null = (() => {
+                  if (!groupByFieldId) return null;
+                  if (groupByFieldId === "alias") {
+                    const alias = r.aliasId ? targetAliasMap[r.aliasId] : undefined;
+                    return alias?.singularName || null;
+                  }
+                  const lookupEntries = groupLookupData[r.id];
+                  if (lookupEntries && lookupEntries.length > 0) {
+                    return lookupEntries.map((e: any) => e.name).join(", ");
+                  }
+                  const val = r.fieldData?.[groupByFieldId];
+                  if (Array.isArray(val)) {
+                    const joined = val.filter(Boolean).join(", ");
+                    return joined || null;
+                  }
+                  return val !== undefined && val !== null && val !== "" ? String(val) : null;
+                })();
                 return (
                   <div
                     key={r.id}
@@ -2209,14 +2234,19 @@ function LookupFieldEditor({
                         {et.singularName[0]}
                       </span>
                     ) : null}
-                    <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 13, color: "#e2e8f0" }}>{r.name}</span>
+                      {groupMeta && (
+                        <span style={{ display: "block", fontSize: 11, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{groupMeta}</span>
+                      )}
+                    </span>
                     {(() => {
                       const alias = r.aliasId ? targetAliasMap[r.aliasId] : undefined;
                       const label = alias ? alias.singularName : et?.singularName;
                       const bg = alias ? alias.bgColor || "#334155" : et?.bgColor || "#334155";
                       const fg = alias ? alias.fgColor || "#fff" : et?.fgColor || "#fff";
                       return label ? (
-                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: bg, color: fg }}>{label}</span>
+                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: bg, color: fg, flexShrink: 0 }}>{label}</span>
                       ) : null;
                     })()}
                   </div>
