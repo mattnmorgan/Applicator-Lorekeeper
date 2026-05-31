@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
-import { getLorebookAccess, canEdit, isOwner } from "../../../lib/permissions";
+import { getLorebookAccess, getGuestLorebookAccess, canEdit, isOwner } from "../../../lib/permissions";
 import { lorebookIconPath, deleteIconFile } from "../../../lib/iconStorage";
 
 export async function GET(
@@ -9,6 +9,16 @@ export async function GET(
   params: { lorebookId: string }
 ) {
   try {
+    if (context.isGuest) {
+      const allowed = await getGuestLorebookAccess(context, params.lorebookId);
+      if (!allowed) return NextResponse.json({ error: "This lorebook is not publicly accessible. Contact the lorebook owner for access." }, { status: 403 });
+
+      const lorebooks = context.recordManager("lorekeeper", "lorebook");
+      const record = await lorebooks.readRecord(params.lorebookId);
+      if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ id: record.id, ...record.data, accessLevel: "guest" });
+    }
+
     const level = await getLorebookAccess(context, params.lorebookId);
     if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -16,7 +26,6 @@ export async function GET(
     const record = await lorebooks.readRecord(params.lorebookId);
     if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const user = await context.user();
     let ownerName = "";
     try {
       const owner = await context.user(record.data.ownerId);

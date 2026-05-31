@@ -1,6 +1,21 @@
 import { ApiContext } from "@applicator/sdk/context";
 import { LorebookAccessLevel } from "../types/Lorebook";
 
+export async function getGuestLorebookAccess(
+  context: ApiContext,
+  lorebookId: string
+): Promise<boolean> {
+  if (!context.isGuest) return false;
+  const guestCtx = context.contextGuest;
+  if (!guestCtx) return false;
+  const data = guestCtx.data as { lorebookId?: string } | null;
+  if (data?.lorebookId !== lorebookId) return false;
+
+  const lorebooks = context.recordManager("lorekeeper", "lorebook");
+  const lorebook = await lorebooks.readRecord(lorebookId);
+  return !!(lorebook?.data.guestAccessEnabled);
+}
+
 export async function getLorebookAccess(
   context: ApiContext,
   lorebookId: string

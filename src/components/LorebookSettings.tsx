@@ -8,6 +8,7 @@ import MetadataTab from "./settings/MetadataTab";
 import MembershipTab from "./settings/MembershipTab";
 import DeleteTab from "./settings/DeleteTab";
 import ExportImportTab from "./settings/ExportImportTab";
+import GuestTab from "./settings/GuestTab";
 
 interface Lorebook {
   id: string;
@@ -27,6 +28,7 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "details", label: "Details", icon: "edit" },
   { id: "metadata", label: "Lore Metadata", icon: "library" },
   { id: "membership", label: "Membership", icon: "users" },
+  { id: "guest", label: "Guest", icon: "globe" },
   { id: "export-import", label: "Export / Import", icon: "download" },
   { id: "delete", label: "Delete", icon: "trash" },
 ];
@@ -61,6 +63,7 @@ export default function LorebookSettings({ lorebookId, tab = "details", navigate
         const active = t.id === tab;
         const isDanger = t.id === "delete";
         if (t.id === "membership" && !canManage) return null;
+        if (t.id === "guest" && !canManage) return null;
         if (t.id === "export-import" && !canManage) return null;
         if (t.id === "delete" && !isOwner) return null;
         return (
@@ -147,6 +150,9 @@ export default function LorebookSettings({ lorebookId, tab = "details", navigate
             )}
             {tab === "membership" && canManage && (
               <MembershipTab lorebookId={lorebookId} isOwner={isOwner} addToast={addToast} navigate={navigate} />
+            )}
+            {tab === "guest" && canManage && (
+              <GuestTab lorebookId={lorebookId} addToast={addToast} />
             )}
             {tab === "export-import" && canManage && (
               <ExportImportTab lorebookId={lorebookId} lorebookName={lorebook?.name || ""} addToast={addToast} onImported={() => navigate({ type: "lorebook", lorebookId })} />

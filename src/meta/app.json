@@ -1,10 +1,11 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 8, "dev": 6 },
+  "version": { "major": 1, "minor": 9, "dev": 0 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
+  "requiredPermissions": ["system:guest-accessible"],
   "dependencies": {},
   "tables": [
     {
@@ -33,6 +34,11 @@
           "type": "relationship",
           "relatedTo": "system:user",
           "required": true
+        },
+        {
+          "name": "guestAccessEnabled",
+          "description": "Whether unauthenticated guest access via a share link is enabled for this lorebook",
+          "type": "boolean"
         }
       ]
     },
@@ -532,7 +538,8 @@
       "name": "Lorekeeper User",
       "authorizations": ["lorekeeper:create-lorebook"]
     },
-    { "id": "lorebook-member", "name": "Lorebook Member", "authorizations": [] }
+    { "id": "lorebook-member", "name": "Lorebook Member", "authorizations": [] },
+    { "id": "lorebook-guest", "name": "Lorebook Guest", "authorizations": [] }
   ],
   "apiRoutes": [
     {
@@ -847,6 +854,16 @@
     },
     { "path": "users", "method": "GET", "description": "Search users" },
     {
+      "path": "lorebooks/[lorebook-id]/guest",
+      "method": "GET",
+      "description": "Get guest access settings for a lorebook (enabled, hasPassword, shareUrl)"
+    },
+    {
+      "path": "lorebooks/[lorebook-id]/guest",
+      "method": "PUT",
+      "description": "Enable or disable guest access for a lorebook, optionally setting a password"
+    },
+    {
       "path": "lorebooks/[lorebook-id]/prefs",
       "method": "GET",
       "description": "Get all preferences for the current user in a lorebook"
@@ -865,6 +882,13 @@
       "description": "Worldbuilding lorebook management",
       "target": "app",
       "component": "Lorekeeper"
+    },
+    {
+      "id": "guest",
+      "label": "Shared Lorebook",
+      "description": "Read-only view of a shared lorebook for unauthenticated guests",
+      "target": "guest",
+      "component": "GuestLorebook"
     },
     {
       "id": "lorebooks",
