@@ -109,7 +109,7 @@ export default function GuestTab({ lorebookId, addToast }: Props) {
   }
 
   return (
-    <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Guest Access</div>
       <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>
         Allow anyone with a share link to view this lorebook without logging in. You can optionally

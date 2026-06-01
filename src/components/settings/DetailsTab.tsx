@@ -77,7 +77,7 @@ export default function DetailsTab({ lorebook, lorebookId, onUpdated, addToast }
   };
 
   return (
-    <div style={{ maxWidth: 480, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>Details</div>
 
       <DynamicInput input={{ id: "name", label: "Name", type: "text", required: true }} value={values.name} onChange={handleChange} />

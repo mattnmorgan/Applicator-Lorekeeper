@@ -138,7 +138,7 @@ export default function MembershipTab({ lorebookId, isOwner, addToast, navigate 
   );
 
   return (
-    <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Membership</div>
 
       {/* Add member — single-line form */}
