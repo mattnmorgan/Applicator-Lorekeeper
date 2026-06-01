@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { ButtonIcon, Icon, ConfirmModal, Spinner } from "@applicator/sdk/components";
+import { useGuest } from "../context/GuestContext";
 import CreateEntryModal from "./CreateEntryModal";
 import PrintModal from "./PrintModal";
 
@@ -150,6 +151,7 @@ export default function EntryTypeRecords({
   const [secondaryLookupData, setSecondaryLookupData] = useState<Record<string, LookupEntry[]>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
+  const { isGuest, guestHeaders } = useGuest();
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
   const aliases = aliasesByTypeId[entryTypeId] || [];
 
@@ -158,7 +160,7 @@ export default function EntryTypeRecords({
 
   // Fetch fields for the current entry type so we can resolve secondary/group-by values
   useEffect(() => {
-    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`)
+    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`, { headers: guestHeaders })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setFields(data?.fields || []))
       .catch(() => setFields([]));
@@ -180,7 +182,8 @@ export default function EntryTypeRecords({
 
       const params = qs.toString() ? `?${qs.toString()}` : "";
       const res = await fetch(
-        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records${params}`
+        `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/records${params}`,
+        { headers: guestHeaders }
       );
       if (res.ok) {
         const data = await res.json();
@@ -207,18 +210,20 @@ export default function EntryTypeRecords({
     } catch {
       setCollapsedGroups(new Set());
     }
-    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.prefs) return;
-        const serverVal = data.prefs[collapsePrefKey];
-        if (!Array.isArray(serverVal)) return;
-        const next = new Set<string>(serverVal);
-        setCollapsedGroups(next);
-        try { localStorage.setItem(lsKey, JSON.stringify(serverVal)); } catch {}
-      })
-      .catch(() => {});
-  }, [lorebookId, entryTypeId]);
+    if (!isGuest) {
+      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (!data?.prefs) return;
+          const serverVal = data.prefs[collapsePrefKey];
+          if (!Array.isArray(serverVal)) return;
+          const next = new Set<string>(serverVal);
+          setCollapsedGroups(next);
+          try { localStorage.setItem(lsKey, JSON.stringify(serverVal)); } catch {}
+        })
+        .catch(() => {});
+    }
+  }, [lorebookId, entryTypeId, isGuest]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchRecords(search), 200);
@@ -294,11 +299,13 @@ export default function EntryTypeRecords({
     try {
       localStorage.setItem(`lk:group-collapse:${lorebookId}:${entryTypeId}`, JSON.stringify(arr));
     } catch {}
-    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: collapsePrefKey, value: arr }),
-    }).catch(() => {});
+    if (!isGuest) {
+      fetch(`/api/lorekeeper/lorebooks/${lorebookId}/prefs`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: collapsePrefKey, value: arr }),
+      }).catch(() => {});
+    }
   };
 
   const toggleGroup = (key: string) => {

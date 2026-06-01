@@ -7,6 +7,7 @@ import EntryTypeNav from "./EntryTypeNav";
 import EntryTypeRecords from "./EntryTypeRecords";
 import EntryRecordView from "./EntryRecordView";
 import PrintModal from "./PrintModal";
+import { useGuest } from "../context/GuestContext";
 
 interface EntryType {
   id: string;
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId, query, navigate }: Props) {
+  const { isGuest, guestHeaders } = useGuest();
   const [lorebook, setLorebook] = useState<Lorebook | null>(null);
   const [entryTypes, setEntryTypes] = useState<EntryType[]>([]);
   const [aliasesByTypeId, setAliasesByTypeId] = useState<Record<string, EntryTypeAlias[]>>({});
@@ -75,8 +77,8 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
     setLoading(true);
     try {
       const [bookRes, typesRes] = await Promise.all([
-        fetch(`/api/lorekeeper/lorebooks/${lorebookId}`),
-        fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types`),
+        fetch(`/api/lorekeeper/lorebooks/${lorebookId}`, { headers: guestHeaders }),
+        fetch(`/api/lorekeeper/lorebooks/${lorebookId}/entry-types`, { headers: guestHeaders }),
       ]);
       if (bookRes.ok) setLorebook(await bookRes.json());
       else if (bookRes.status === 403 || bookRes.status === 404) { setDenied(true); setLoading(false); return; }
@@ -87,7 +89,7 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
       }
     } catch {}
     setLoading(false);
-  }, [lorebookId]);
+  }, [lorebookId, guestHeaders]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -113,7 +115,7 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
     if (!entryId || entryTypeId || entryTypes.length === 0) return;
     const typeIds = entryTypes.filter(t => !t.isGroup).map(t => t.id).join(",");
     if (!typeIds) return;
-    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/records?typeIds=${typeIds}`)
+    fetch(`/api/lorekeeper/lorebooks/${lorebookId}/records?typeIds=${typeIds}`, { headers: guestHeaders })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return;
@@ -189,7 +191,9 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
         zIndex: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-          <ButtonIcon name="chevron-left" label="Back to lorebooks" onClick={() => navigate({ type: "lorebooks" })} />
+          {!isGuest && (
+            <ButtonIcon name="chevron-left" label="Back to lorebooks" onClick={() => navigate({ type: "lorebooks" })} />
+          )}
           <div style={{
             width: 28, height: 28, borderRadius: 6, overflow: "hidden", flexShrink: 0,
             background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center",
@@ -210,11 +214,13 @@ export default function LorebookView({ lorebookId, entryTypeId, entryId, aliasId
             label="Print lorebook"
             onClick={() => setShowPrint(true)}
           />
-          <ButtonIcon
-            name="settings"
-            label="Lorebook settings"
-            onClick={() => navigate({ type: "settings", lorebookId, tab: "details" })}
-          />
+          {!isGuest && (
+            <ButtonIcon
+              name="settings"
+              label="Lorebook settings"
+              onClick={() => navigate({ type: "settings", lorebookId, tab: "details" })}
+            />
+          )}
         </div>
       </div>
 

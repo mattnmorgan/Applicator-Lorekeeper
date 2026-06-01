@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
-import { getLorebookAccess, canEdit } from "../../../../../../../../lib/permissions";
+import { getLorebookAccess, getGuestLorebookAccess, canEdit } from "../../../../../../../../lib/permissions";
 import {
   attachmentPath,
   attachmentThumbPath,
@@ -14,8 +14,13 @@ export async function GET(
   params: { lorebookId: string; typeId: string; recordId: string }
 ) {
   try {
-    const level = await getLorebookAccess(context, params.lorebookId);
-    if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (context.isGuest) {
+      const allowed = await getGuestLorebookAccess(context, params.lorebookId);
+      if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    } else {
+      const level = await getLorebookAccess(context, params.lorebookId);
+      if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
     const attachments = context.recordManager("lorekeeper", "entry_attachment");
     const result = await attachments.readRecords({

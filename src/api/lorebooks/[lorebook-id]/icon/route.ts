@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
-import { getLorebookAccess, getGuestLorebookAccess, canEdit } from "../../../../lib/permissions";
+import { getLorebookAccess, checkPublicImageAccess, canEdit } from "../../../../lib/permissions";
 import { lorebookIconPath, saveIconFromDataUrl } from "../../../../lib/iconStorage";
 
 export async function GET(
@@ -9,13 +9,8 @@ export async function GET(
   params: { lorebookId: string }
 ) {
   try {
-    if (context.isGuest) {
-      const allowed = await getGuestLorebookAccess(context, params.lorebookId);
-      if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    } else {
-      const level = await getLorebookAccess(context, params.lorebookId);
-      if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const allowed = await checkPublicImageAccess(context, params.lorebookId);
+    if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const iconPath = lorebookIconPath(params.lorebookId);
     const legacyPath = iconPath.replace(/\.png$/, ".jpg");

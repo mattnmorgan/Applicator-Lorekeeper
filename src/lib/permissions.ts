@@ -1,6 +1,31 @@
 import { ApiContext } from "@applicator/sdk/context";
 import { LorebookAccessLevel } from "../types/Lorebook";
 
+/**
+ * Access check for image-serving GET routes (icons, thumbnails).
+ * These are loaded via <img> tags which cannot send custom headers, so
+ * context.isGuest is always false for them in a guest session. Instead we
+ * allow unauthenticated requests when guestAccessEnabled is true on the lorebook.
+ */
+export async function checkPublicImageAccess(
+  context: ApiContext,
+  lorebookId: string,
+): Promise<boolean> {
+  if (context.isGuest) {
+    return getGuestLorebookAccess(context, lorebookId);
+  }
+  const lorebooks = context.recordManager("lorekeeper", "lorebook");
+  const lorebook = await lorebooks.readRecord(lorebookId);
+  if (!lorebook) return false;
+  if (lorebook.data.guestAccessEnabled) return true;
+  try {
+    const level = await getLorebookAccess(context, lorebookId);
+    return level !== null;
+  } catch {
+    return false;
+  }
+}
+
 export async function getGuestLorebookAccess(
   context: ApiContext,
   lorebookId: string

@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({
       enabled: true,
       hasPassword: !!ctxData.hasPassword,
-      shareUrl: `/guest/lorekeeper?context=${encodeURIComponent(ca.id)}`,
+      shareUrl: `/app/guest/lorekeeper?context=${encodeURIComponent(ca.id)}`,
       contextId: ca.id,
     });
   } catch (error: any) {
@@ -73,7 +73,7 @@ export async function PUT(
       app: "lorekeeper",
       recordId,
       permission: "lorekeeper:lorebook-guest",
-      password: hasPassword ? password! : "",
+      ...(hasPassword ? { password } : {}),
       createdBy: user.id,
       context: JSON.stringify({ lorebookId: params.lorebookId, hasPassword }),
     });
@@ -83,7 +83,7 @@ export async function PUT(
     return NextResponse.json({
       enabled: true,
       hasPassword,
-      shareUrl: `/guest/lorekeeper?context=${encodeURIComponent(ca.id)}`,
+      shareUrl: `/app/guest/lorekeeper?context=${encodeURIComponent(ca.id)}`,
       contextId: ca.id,
     });
   } catch (error: any) {

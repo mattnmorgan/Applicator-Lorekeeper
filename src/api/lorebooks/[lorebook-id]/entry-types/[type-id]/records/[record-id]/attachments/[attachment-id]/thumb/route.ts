@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiContext } from "@applicator/sdk/context";
-import { getLorebookAccess } from "../../../../../../../../../../lib/permissions";
+import { checkPublicImageAccess } from "../../../../../../../../../../lib/permissions";
 import { attachmentPath, attachmentThumbPath, generateThumbnail } from "../../../../../../../../../../lib/iconStorage";
 
 export async function GET(
@@ -9,8 +9,8 @@ export async function GET(
   params: { lorebookId: string; typeId: string; recordId: string; attachmentId: string }
 ) {
   try {
-    const level = await getLorebookAccess(context, params.lorebookId);
-    if (!level) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const allowed = await checkPublicImageAccess(context, params.lorebookId);
+    if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const attachments = context.recordManager("lorekeeper", "entry_attachment");
     const record = await attachments.readRecord(params.attachmentId);

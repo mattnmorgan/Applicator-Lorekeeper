@@ -20,6 +20,7 @@ import NewAliasForm, { type NewAliasValues } from "./NewAliasForm";
 import { SinglePicklistInput, MultiPicklistInput, resolvePicklistValue } from "./PicklistInput";
 import PrintModal from "./PrintModal";
 import type { FormLayout, FormViewerField } from "@applicator/sdk/components";
+import { useGuest } from "../context/GuestContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,8 @@ export default function EntryRecordView({
     setLocalAliases(aliases);
   }, [aliases]);
 
+  const { guestHeaders } = useGuest();
+
   const entryType = entryTypes.find((t) => t.id === entryTypeId);
 
   const handleSaveNewAlias = async (newValues: NewAliasValues) => {
@@ -222,15 +225,17 @@ export default function EntryRecordView({
     setLoading(true);
     try {
       const [recRes, fieldRes, secRes, attRes, lookRes] = await Promise.all([
-        fetch(baseUrl),
+        fetch(baseUrl, { headers: guestHeaders }),
         fetch(
           `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/fields`,
+          { headers: guestHeaders },
         ),
         fetch(
           `/api/lorekeeper/lorebooks/${lorebookId}/entry-types/${entryTypeId}/sections?includeRelated=true`,
+          { headers: guestHeaders },
         ),
-        fetch(`${baseUrl}/attachments`),
-        fetch(`${baseUrl}/lookups`),
+        fetch(`${baseUrl}/attachments`, { headers: guestHeaders }),
+        fetch(`${baseUrl}/lookups`, { headers: guestHeaders }),
       ]);
 
       let fetchedLookups: RecordLookup[] = [];
@@ -276,6 +281,7 @@ export default function EntryRecordView({
           // Fetch records for all related entry types in one bulk request
           const bulkRes = await fetch(
             `/api/lorekeeper/lorebooks/${lorebookId}/records?typeIds=${relatedTypeIds.join(",")}`,
+            { headers: guestHeaders },
           );
           const recordsByType: Record<string, any[]> = bulkRes.ok
             ? (await bulkRes.json()).recordsByTypeId || {}
@@ -318,7 +324,7 @@ export default function EntryRecordView({
       }
     } catch {}
     setLoading(false);
-  }, [baseUrl, lorebookId, entryTypeId, recordId, aliasesByTypeId]);
+  }, [baseUrl, lorebookId, entryTypeId, recordId, aliasesByTypeId, guestHeaders]);
 
   useEffect(() => {
     fetchAll();
@@ -1930,11 +1936,11 @@ export default function EntryRecordView({
           fileName={previewFile.filename}
           filePath={previewFile.id}
           getPreviewUrl={async (id) => {
-            const res = await fetch(`${baseUrl}/attachments/${id}`);
+            const res = await fetch(`${baseUrl}/attachments/${id}`, { headers: guestHeaders });
             return URL.createObjectURL(await res.blob());
           }}
           fetchTextContent={async (id) => {
-            const res = await fetch(`${baseUrl}/attachments/${id}`);
+            const res = await fetch(`${baseUrl}/attachments/${id}`, { headers: guestHeaders });
             return res.text();
           }}
           onClose={() => setPreviewFile(null)}
