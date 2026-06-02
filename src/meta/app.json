@@ -1,7 +1,7 @@
 {
   "id": "lorekeeper",
   "name": "Lorekeeper",
-  "version": { "major": 1, "minor": 9, "dev": 3 },
+  "version": { "major": 1, "minor": 9, "dev": 4 },
   "author": "Matthew Morgan",
   "contactEmail": "matthew@morgantech.info",
   "description": "Lorekeeping application for worldbuilding",
@@ -530,6 +530,13 @@
       "name": "Create Lorebook",
       "description": "Allows the user to create new lorebooks",
       "target": "user"
+    },
+    {
+      "id": "lorebook-guest",
+      "name": "Lorebook Guest",
+      "description": "Grants read-only guest access to a specific lorebook",
+      "contextual": true,
+      "target": "user"
     }
   ],
   "authorities": [
@@ -539,7 +546,7 @@
       "authorizations": ["lorekeeper:create-lorebook"]
     },
     { "id": "lorebook-member", "name": "Lorebook Member", "authorizations": [] },
-    { "id": "lorebook-guest", "name": "Lorebook Guest", "authorizations": [] }
+    { "id": "lorebook-guest", "name": "Lorebook Guest", "authorizations": ["lorekeeper:lorebook-guest"] }
   ],
   "apiRoutes": [
     {
